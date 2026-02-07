@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { readMyMoai } from "@/lib/moai";
+import { LiFiBridgeWidget } from "./LiFiBridgeWidget";
 
 export function DepositClient() {
   const [ready, setReady] = useState(false);
@@ -44,12 +45,11 @@ export function DepositClient() {
       <div className="rounded-xl border border-neutral-200 p-4">
         <h2 className="text-sm font-semibold">Bridge USDC in</h2>
         <p className="mt-2 text-sm text-neutral-700">
-          Next step: embed the LI.FI Widget here for cross-chain deposits.
+          Use chain abstraction to deposit from any chain.
         </p>
-        <p className="mt-2 text-sm text-neutral-600">
-          For now this is a placeholder route so the demo flow has a stable
-          entry point.
-        </p>
+        <div className="mt-4">
+          <LiFiBridgeWidget />
+        </div>
       </div>
 
       <div className="rounded-xl border border-neutral-200 p-4">

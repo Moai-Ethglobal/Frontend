@@ -11,11 +11,17 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@bigmi/react": "^0.7.0",
     "@huddle01/react": "^2.6.4",
     "@huddle01/server-sdk": "^2.6.2",
+    "@lifi/widget": "^3.40.6",
+    "@mysten/dapp-kit": "^1.0.1",
+    "@solana/wallet-adapter-react": "^0.15.39",
+    "@tanstack/react-query": "^5.90.20",
     "next": "^16.1.6",
     "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "react-dom": "19.0.0",
+    "wagmi": "^2.19.5"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.14",
