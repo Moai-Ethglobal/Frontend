@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { invitePath } from "@/lib/invite";
 import type { MyMoai } from "@/lib/moai";
 import { readMyMoai } from "@/lib/moai";
+import { ContributionCard } from "./ContributionCard";
 
 export function MyMoaiClient() {
   const [moai, setMoai] = useState<MyMoai | null>(null);
@@ -82,16 +83,7 @@ export function MyMoaiClient() {
         ) : null}
       </div>
 
-      <div className="mt-10 rounded-xl border border-neutral-200 p-4">
-        <h2 className="text-sm font-semibold">Contribution</h2>
-        <p className="mt-2 text-sm text-neutral-700">
-          Monthly:{" "}
-          <span className="font-medium text-neutral-900">
-            {moai.monthlyContributionUSDC ?? "Not set"}
-          </span>
-          {moai.monthlyContributionUSDC ? " USDC" : null}
-        </p>
-      </div>
+      <ContributionCard moai={moai} />
 
       <div className="mt-10 rounded-xl border border-neutral-200 p-4">
         <h2 className="text-sm font-semibold">Members</h2>

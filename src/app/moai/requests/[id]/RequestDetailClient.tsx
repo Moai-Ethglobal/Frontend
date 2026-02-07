@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { hasCheckedIn, monthKey } from "@/lib/meetings";
+import { hasCheckedIn } from "@/lib/meetings";
 import { readMyMoai } from "@/lib/moai";
 import type { MoaiRequest } from "@/lib/requests";
 import {
@@ -12,6 +12,7 @@ import {
   votesNeeded,
 } from "@/lib/requests";
 import { readSession } from "@/lib/session";
+import { monthKey } from "@/lib/time";
 
 export function RequestDetailClient({ requestId }: { requestId: string }) {
   const [request, setRequest] = useState<MoaiRequest | null>(null);

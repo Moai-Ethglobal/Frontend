@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { Meeting } from "@/lib/meetings";
-import { checkInMeeting, ensureMeeting, monthKey } from "@/lib/meetings";
+import { checkInMeeting, ensureMeeting } from "@/lib/meetings";
 import { readMyMoai } from "@/lib/moai";
 import { readSession } from "@/lib/session";
+import { monthKey } from "@/lib/time";
 
 export function MeetingsClient() {
   const [ready, setReady] = useState(false);
