@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { Meeting } from "@/lib/meetings";
@@ -7,6 +8,10 @@ import { checkInMeeting, ensureMeeting } from "@/lib/meetings";
 import { readMyMoai } from "@/lib/moai";
 import { readSession } from "@/lib/session";
 import { monthKey } from "@/lib/time";
+
+const HuddleJoinPanel = dynamic(() => import("./HuddleJoinPanel"), {
+  ssr: false,
+});
 
 export function MeetingsClient() {
   const [ready, setReady] = useState(false);
@@ -258,6 +263,10 @@ export function MeetingsClient() {
 
         {huddleError ? (
           <p className="mt-3 text-sm text-red-600">{huddleError}</p>
+        ) : null}
+
+        {roomId && token ? (
+          <HuddleJoinPanel roomId={roomId} token={token} />
         ) : null}
 
         <p className="mt-3 text-sm text-neutral-600">
