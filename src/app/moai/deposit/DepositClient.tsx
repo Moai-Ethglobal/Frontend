@@ -10,6 +10,9 @@ import { LiFiBridgeWidget } from "./LiFiBridgeWidget";
 export function DepositClient() {
   const [ready, setReady] = useState(false);
   const [hasMoai, setHasMoai] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
+    "idle",
+  );
   const [monthlyContribution, setMonthlyContribution] = useState<number | null>(
     null,
   );
@@ -28,6 +31,16 @@ export function DepositClient() {
     setWalletAddress(session?.method === "wallet" ? session.id : null);
     setReady(true);
   }, []);
+
+  const onCopy = async () => {
+    if (typeof window === "undefined") return;
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopyState("copied");
+    } catch {
+      setCopyState("failed");
+    }
+  };
 
   if (!ready) {
     return (
@@ -58,9 +71,25 @@ export function DepositClient() {
   return (
     <div className="mt-10 space-y-4">
       <div className="rounded-xl border border-neutral-200 p-4">
-        <h2 className="text-sm font-semibold">Bridge USDC in</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold">Bridge USDC in</h2>
+          <button
+            className="text-sm font-medium text-neutral-900 hover:underline"
+            type="button"
+            onClick={() => void onCopy()}
+          >
+            {copyState === "copied"
+              ? "Copied"
+              : copyState === "failed"
+                ? "Copy failed"
+                : "Copy link"}
+          </button>
+        </div>
         <p className="mt-2 text-sm text-neutral-700">
           Use chain abstraction to deposit from any chain.
+        </p>
+        <p className="mt-2 text-sm text-neutral-600">
+          The URL updates with your current selection.
         </p>
         <div className="mt-4">
           <LiFiBridgeWidget

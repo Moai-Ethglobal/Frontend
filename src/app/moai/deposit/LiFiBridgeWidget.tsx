@@ -37,6 +37,7 @@ export function LiFiBridgeWidget({
       subvariantOptions: {
         split: "bridge",
       },
+      buildUrl: true,
       toChain: DEFAULT_TO_CHAIN,
       fromAmount: amount,
       toAddress: toAddress
