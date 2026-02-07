@@ -1,21 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { readMyMoai } from "@/lib/moai";
+import { useCallback, useEffect, useState } from "react";
+import { listActiveMembers, readMyMoai } from "@/lib/moai";
 import type { MoaiRequest } from "@/lib/requests";
 import {
   listRequestsByMoaiId,
   requestTypeLabel,
   votesNeededByType,
 } from "@/lib/requests";
+import { STORAGE_CHANGE_EVENT, type StorageChangeDetail } from "@/lib/storage";
 
 export function RequestsClient() {
   const [ready, setReady] = useState(false);
   const [requests, setRequests] = useState<MoaiRequest[]>([]);
   const [memberCount, setMemberCount] = useState(0);
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     const moai = readMyMoai();
     if (!moai) {
       setMemberCount(0);
@@ -24,10 +25,25 @@ export function RequestsClient() {
       return;
     }
 
-    setMemberCount(moai.members.length);
+    setMemberCount(listActiveMembers(moai).length);
     setRequests(listRequestsByMoaiId(moai.id));
     setReady(true);
   }, []);
+
+  useEffect(() => {
+    refresh();
+
+    const onChanged = (evt: Event) => {
+      const detail = (evt as CustomEvent<StorageChangeDetail>).detail;
+      if (!detail?.key) return;
+      if (detail.key !== "moai.requests.v1" && detail.key !== "moai.myMoai.v1")
+        return;
+      refresh();
+    };
+
+    window.addEventListener(STORAGE_CHANGE_EVENT, onChanged);
+    return () => window.removeEventListener(STORAGE_CHANGE_EVENT, onChanged);
+  }, [refresh]);
 
   if (!ready) return <p className="mt-10 text-sm text-neutral-600">Loading…</p>;
 

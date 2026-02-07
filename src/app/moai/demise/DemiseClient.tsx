@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { readMyMoai } from "@/lib/moai";
-import { toProofRef, uploadProof } from "@/lib/proofs";
+import { createRequestAction, uploadProofAction } from "@/lib/actions";
+import { isActiveMemberId, isMemberActive, readMyMoai } from "@/lib/moai";
+import { toProofRef } from "@/lib/proofs";
 import type { CreateRequestInput } from "@/lib/requests";
-import { createRequest } from "@/lib/requests";
 import { readSession } from "@/lib/session";
 
 type Status = "idle" | "uploading" | "submitting" | "done" | "error";
@@ -18,6 +18,7 @@ export function DemiseClient() {
   const [moaiId, setMoaiId] = useState<string | null>(null);
   const [members, setMembers] = useState<{ id: string; name: string }[]>([]);
   const [voterId, setVoterId] = useState<string | null>(null);
+  const [memberActive, setMemberActive] = useState(false);
 
   const [type, setType] = useState<ReportType>("awol");
   const [subjectMemberId, setSubjectMemberId] = useState("");
@@ -33,9 +34,14 @@ export function DemiseClient() {
     const session = readSession();
     setMoaiId(moai?.id ?? null);
     setMembers(
-      (moai?.members ?? []).map((m) => ({ id: m.id, name: m.displayName })),
+      (moai?.members ?? [])
+        .filter(isMemberActive)
+        .map((m) => ({ id: m.id, name: m.displayName })),
     );
     setVoterId(session?.id ?? null);
+    setMemberActive(
+      Boolean(moai && session?.id && isActiveMemberId(moai, session.id)),
+    );
     setReady(true);
   }, []);
 
@@ -109,7 +115,7 @@ export function DemiseClient() {
     const proofRefs: ReturnType<typeof toProofRef>[] = [];
 
     for (const file of files) {
-      const result = await uploadProof({ file });
+      const result = await uploadProofAction({ file });
       if (!result.ok) {
         setStatus("error");
         setError(result.error);
@@ -130,7 +136,7 @@ export function DemiseClient() {
       proofs: proofRefs,
     };
 
-    const request = createRequest(input);
+    const request = createRequestAction(input);
     setStatus("done");
     router.push(`/moai/requests/${request.id}`);
   };
@@ -171,6 +177,24 @@ export function DemiseClient() {
             href="/auth"
           >
             Login
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!memberActive) {
+    return (
+      <div className="mt-10 rounded-xl border border-neutral-200 p-4">
+        <p className="text-sm text-neutral-700">
+          This account is not an active member of this Moai.
+        </p>
+        <div className="mt-4">
+          <Link
+            className="text-sm font-medium text-neutral-900 hover:underline"
+            href="/auth"
+          >
+            Switch account
           </Link>
         </div>
       </div>

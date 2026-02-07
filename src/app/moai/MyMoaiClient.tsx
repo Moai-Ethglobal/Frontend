@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { invitePath } from "@/lib/invite";
-import type { MyMoai } from "@/lib/moai";
-import { readMyMoai } from "@/lib/moai";
+import { isMemberActive, type MyMoai, readMyMoai } from "@/lib/moai";
+import { STORAGE_CHANGE_EVENT, type StorageChangeDetail } from "@/lib/storage";
 import { ActiveStatusCard } from "./ActiveStatusCard";
 import { ContributionCard } from "./ContributionCard";
 import { ExecutionCard } from "./ExecutionCard";
@@ -17,10 +17,24 @@ export function MyMoaiClient() {
   const [moai, setMoai] = useState<MyMoai | null>(null);
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     setMoai(readMyMoai());
     setReady(true);
   }, []);
+
+  useEffect(() => {
+    refresh();
+
+    const onChanged = (evt: Event) => {
+      const detail = (evt as CustomEvent<StorageChangeDetail>).detail;
+      if (!detail?.key) return;
+      if (detail.key !== "moai.myMoai.v1") return;
+      refresh();
+    };
+
+    window.addEventListener(STORAGE_CHANGE_EVENT, onChanged);
+    return () => window.removeEventListener(STORAGE_CHANGE_EVENT, onChanged);
+  }, [refresh]);
 
   const localInvitePath = moai ? invitePath(moai.inviteCode) : null;
 
@@ -60,11 +74,15 @@ export function MyMoaiClient() {
     );
   }
 
+  const activeMembers = moai.members.filter(isMemberActive);
+  const pastMembers = moai.members.filter((m) => !isMemberActive(m));
+
   return (
     <>
       <p className="mt-3 text-pretty text-base leading-7 text-neutral-800">
-        {moai.name} · {moai.members.length} member
-        {moai.members.length === 1 ? "" : "s"}
+        {moai.name} · {activeMembers.length} member
+        {activeMembers.length === 1 ? "" : "s"}
+        {pastMembers.length > 0 ? ` (+${pastMembers.length} past)` : ""}
       </p>
 
       <div className="mt-10 rounded-xl border border-neutral-200 p-4">
@@ -121,7 +139,7 @@ export function MyMoaiClient() {
       <div className="mt-10 rounded-xl border border-neutral-200 p-4">
         <h2 className="text-sm font-semibold">Members</h2>
         <ul className="mt-3 space-y-2">
-          {moai.members.map((m) => (
+          {activeMembers.map((m) => (
             <li
               className="flex items-center justify-between text-sm"
               key={m.id}
@@ -131,6 +149,26 @@ export function MyMoaiClient() {
             </li>
           ))}
         </ul>
+        {pastMembers.length > 0 ? (
+          <div className="mt-6">
+            <h3 className="text-sm font-semibold text-neutral-900">
+              Past members
+            </h3>
+            <ul className="mt-3 space-y-2">
+              {pastMembers.map((m) => (
+                <li
+                  className="flex items-center justify-between text-sm"
+                  key={m.id}
+                >
+                  <span className="text-neutral-900">{m.displayName}</span>
+                  <span className="text-neutral-600">
+                    {m.pastReason ?? "past"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-10 rounded-xl border border-neutral-200 p-4">

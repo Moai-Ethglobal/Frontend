@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { createMoaiAction } from "@/lib/actions";
 import { generateInviteCode, invitePath } from "@/lib/invite";
-import { createMyMoai } from "@/lib/moai";
 import { createSession, readSession } from "@/lib/session";
 
 type FieldProps = {
@@ -72,7 +72,7 @@ export function CreateMoaiForm() {
   const onCreate = () => {
     const code = generateInviteCode();
     const session = readSession() ?? createSession("passkey");
-    createMyMoai({
+    createMoaiAction({
       name: moaiName.trim(),
       inviteCode: code,
       monthlyContributionUSDC: monthlyContributionUSDC.trim(),

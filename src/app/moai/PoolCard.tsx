@@ -65,6 +65,11 @@ export function PoolCard({ moaiId }: { moaiId: string }) {
     return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   }, []);
 
+  const apy = 0.03;
+  const estMonthlyYield = useMemo(() => {
+    return balance > 0 ? (balance * apy) / 12 : 0;
+  }, [balance]);
+
   if (!ready) {
     return (
       <div className="mt-10 rounded-xl border border-neutral-200 p-4">
@@ -98,6 +103,28 @@ export function PoolCard({ moaiId }: { moaiId: string }) {
       <p className="mt-3 text-sm text-neutral-600">
         Calculated locally for now.
       </p>
+
+      <div className="mt-6 border-t border-neutral-200 pt-4">
+        <h3 className="text-sm font-semibold">Yield</h3>
+        <p className="mt-2 text-sm text-neutral-700">
+          Strategy:{" "}
+          <span className="font-medium text-neutral-900">
+            low-risk, liquid (demo)
+          </span>
+        </p>
+        <p className="mt-1 text-sm text-neutral-700">
+          Est. APY:{" "}
+          <span className="font-medium text-neutral-900">
+            {fmt.format(apy * 100)}%
+          </span>
+        </p>
+        <p className="mt-1 text-sm text-neutral-700">
+          Est. monthly yield:{" "}
+          <span className="font-medium text-neutral-900">
+            {fmt.format(estMonthlyYield)} USDC
+          </span>
+        </p>
+      </div>
     </div>
   );
 }

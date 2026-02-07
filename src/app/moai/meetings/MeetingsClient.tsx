@@ -3,14 +3,16 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { checkInMeetingAction } from "@/lib/actions";
 import { createHuddleRoom, getHuddleToken } from "@/lib/huddle";
 import type { Meeting } from "@/lib/meetings";
 import {
-  checkInMeeting,
   ensureMeeting,
+  getCheckInReceiptId,
   setMeetingRoomId,
 } from "@/lib/meetings";
-import { readMyMoai } from "@/lib/moai";
+import type { MyMoai } from "@/lib/moai";
+import { isActiveMemberId, readMyMoai } from "@/lib/moai";
 import { readSession } from "@/lib/session";
 import { monthKey } from "@/lib/time";
 
@@ -20,6 +22,7 @@ const HuddleJoinPanel = dynamic(() => import("./HuddleJoinPanel"), {
 
 export function MeetingsClient() {
   const [ready, setReady] = useState(false);
+  const [moai, setMoai] = useState<MyMoai | null>(null);
   const [moaiId, setMoaiId] = useState<string | null>(null);
   const [moaiName, setMoaiName] = useState<string | null>(null);
   const [voterId, setVoterId] = useState<string | null>(null);
@@ -33,13 +36,16 @@ export function MeetingsClient() {
 
   useEffect(() => {
     const currentMonth = monthKey(new Date());
-    const moai = readMyMoai();
+    const currentMoai = readMyMoai();
     const session = readSession();
-    setMoaiId(moai?.id ?? null);
-    setMoaiName(moai?.name ?? null);
+    setMoai(currentMoai);
+    setMoaiId(currentMoai?.id ?? null);
+    setMoaiName(currentMoai?.name ?? null);
     setVoterId(session?.id ?? null);
     setMonth(currentMonth);
-    setMeeting(moai ? ensureMeeting(moai.id, currentMonth) : null);
+    setMeeting(
+      currentMoai ? ensureMeeting(currentMoai.id, currentMonth) : null,
+    );
     setReady(true);
   }, []);
 
@@ -48,11 +54,20 @@ export function MeetingsClient() {
   const checkedInAt = voterId
     ? meeting?.attendanceByVoterId[voterId]
     : undefined;
+  const receiptId =
+    voterId && moaiId && month
+      ? getCheckInReceiptId({ moaiId, month, voterId })
+      : null;
   const attendeeCount = meeting
     ? Object.keys(meeting.attendanceByVoterId).length
     : 0;
 
-  const canCheckIn = Boolean(meeting) && Boolean(voterId) && !checkedInAt;
+  const memberActive = Boolean(
+    moai && voterId && isActiveMemberId(moai, voterId),
+  );
+
+  const canCheckIn =
+    Boolean(meeting) && Boolean(voterId) && memberActive && !checkedInAt;
 
   const onCheckIn = (input?: { silent?: boolean }) => {
     if (checkedInAt) return;
@@ -65,13 +80,17 @@ export function MeetingsClient() {
       if (!input?.silent) setError("Login to check in.");
       return;
     }
+    if (!memberActive) {
+      if (!input?.silent) setError("Only active members can check in.");
+      return;
+    }
     if (!month) {
       if (!input?.silent) setError("Missing month context.");
       return;
     }
 
     setMeeting(
-      checkInMeeting({
+      checkInMeetingAction({
         moaiId,
         month,
         voterId,
@@ -119,6 +138,24 @@ export function MeetingsClient() {
     );
   }
 
+  if (!memberActive) {
+    return (
+      <div className="mt-10 rounded-xl border border-neutral-200 p-4">
+        <p className="text-sm text-neutral-700">
+          This account is not an active member of this Moai.
+        </p>
+        <div className="mt-4">
+          <Link
+            className="text-sm font-medium text-neutral-900 hover:underline"
+            href="/auth"
+          >
+            Switch account
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (!meeting) {
     return (
       <p className="mt-10 text-sm text-neutral-600">
@@ -133,6 +170,10 @@ export function MeetingsClient() {
     setHuddleLoading(true);
     setToken(null);
     try {
+      if (!memberActive) {
+        setHuddleError("Only members can create rooms.");
+        return;
+      }
       const result = await createHuddleRoom({
         title: moaiName && month ? `${moaiName} · ${month}` : "Moai meeting",
       });
@@ -168,6 +209,10 @@ export function MeetingsClient() {
     setHuddleLoading(true);
     setToken(null);
     try {
+      if (!memberActive) {
+        setHuddleError("Only members can generate tokens.");
+        return;
+      }
       const result = await getHuddleToken({ roomId });
       if (!result.ok) {
         setHuddleError(result.error);
@@ -188,6 +233,11 @@ export function MeetingsClient() {
     setToken(null);
 
     try {
+      if (!memberActive) {
+        setHuddleError("Only members can start meetings.");
+        setAutoJoin(false);
+        return;
+      }
       let ensuredRoomId = roomId;
 
       if (!ensuredRoomId) {
@@ -265,6 +315,14 @@ export function MeetingsClient() {
         {checkedInAt ? (
           <p className="mt-3 text-sm text-neutral-600">
             Checked in at {new Date(checkedInAt).toLocaleString(undefined)}.
+          </p>
+        ) : null}
+        {receiptId ? (
+          <p className="mt-1 text-sm text-neutral-600">
+            Receipt:{" "}
+            <span className="rounded bg-neutral-100 px-2 py-1 font-mono text-xs">
+              {receiptId.slice(0, 12)}…{receiptId.slice(-6)}
+            </span>
           </p>
         ) : null}
 

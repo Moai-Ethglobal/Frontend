@@ -114,7 +114,7 @@ export function ExecutionCard() {
           <p className="mt-2 text-sm text-neutral-700">
             Mode:{" "}
             <span className="font-medium text-neutral-900">
-              {method === "wallet" ? "wallet (EIP-5792)" : "local (mock)"}
+              {method === "wallet" ? "wallet (EIP-5792 ready)" : "local (mock)"}
             </span>
           </p>
           {method === "wallet" ? (
@@ -129,6 +129,9 @@ export function ExecutionCard() {
               Connect a wallet to enable capability-aware execution.
             </p>
           )}
+          <p className="mt-1 text-sm text-neutral-600">
+            Actions are mocked until contracts are wired.
+          </p>
         </div>
 
         {method !== "wallet" ? (

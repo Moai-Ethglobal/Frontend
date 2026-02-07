@@ -1,4 +1,4 @@
-import type { MoaiMember, MyMoai } from "./moai";
+import { isMemberActive, type MoaiMember, type MyMoai } from "./moai";
 
 function monthIndex(month: string): number | null {
   const [yRaw, mRaw] = month.split("-");
@@ -19,7 +19,7 @@ function sortMembersByJoinTime(members: MoaiMember[]): MoaiMember[] {
 }
 
 export function rotationOrder(moai: MyMoai): MoaiMember[] {
-  return sortMembersByJoinTime(moai.members);
+  return sortMembersByJoinTime(moai.members.filter(isMemberActive));
 }
 
 export function rotationNextMember(

@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { withdrawRotationAction } from "@/lib/actions";
 import type { ContributionPayment } from "@/lib/contributions";
 import { listContributionPaymentsByMoaiId } from "@/lib/contributions";
 import { getMeeting } from "@/lib/meetings";
-import type { MyMoai } from "@/lib/moai";
+import { isActiveMemberId, type MyMoai } from "@/lib/moai";
 import type { MoaiRequest } from "@/lib/requests";
 import { listRequestsByMoaiId } from "@/lib/requests";
 import { rotationNextMember } from "@/lib/rotation";
@@ -14,10 +15,7 @@ import { STORAGE_CHANGE_EVENT, type StorageChangeDetail } from "@/lib/storage";
 import { monthKey } from "@/lib/time";
 import { sumUSDC } from "@/lib/usdc";
 import type { Withdrawal } from "@/lib/withdrawals";
-import {
-  createRotationWithdrawal,
-  listWithdrawalsByMoaiId,
-} from "@/lib/withdrawals";
+import { listWithdrawalsByMoaiId } from "@/lib/withdrawals";
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -92,6 +90,7 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
   }, [contributed, emergencyPaidOut, withdrawn]);
 
   const activeThisMonth = Boolean(checkedInAt);
+  const memberActive = Boolean(voterId && isActiveMemberId(moai, voterId));
 
   const nextMember = useMemo(() => {
     if (!month) return null;
@@ -105,6 +104,7 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
     ready &&
     Boolean(voterId) &&
     Boolean(month) &&
+    memberActive &&
     activeThisMonth &&
     isNext &&
     balance > 0;
@@ -117,6 +117,10 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
     setError(null);
     if (!voterId) {
       setError("Login to withdraw.");
+      return;
+    }
+    if (!memberActive) {
+      setError("Only active members can withdraw.");
       return;
     }
     if (!month) {
@@ -136,7 +140,7 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
       return;
     }
 
-    createRotationWithdrawal({
+    withdrawRotationAction({
       moaiId: moai.id,
       month,
       voterId,
@@ -167,11 +171,13 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
             Eligible:{" "}
             <span className="font-medium text-neutral-900">
               {voterId
-                ? activeThisMonth
-                  ? isNext
-                    ? "yes"
-                    : `next is ${nextMember?.displayName ?? "—"}`
-                  : "check in required"
+                ? !memberActive
+                  ? "member required"
+                  : activeThisMonth
+                    ? isNext
+                      ? "yes"
+                      : `next is ${nextMember?.displayName ?? "—"}`
+                    : "check in required"
                 : "login required"}
             </span>
           </p>

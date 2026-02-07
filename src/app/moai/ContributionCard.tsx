@@ -2,12 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { payContributionAction } from "@/lib/actions";
 import type { ContributionPayment } from "@/lib/contributions";
-import {
-  getContributionPayment,
-  markContributionPaid,
-} from "@/lib/contributions";
-import type { MyMoai } from "@/lib/moai";
+import { getContributionPayment } from "@/lib/contributions";
+import { isActiveMemberId, type MyMoai } from "@/lib/moai";
 import { readSession } from "@/lib/session";
 import { monthKey } from "@/lib/time";
 
@@ -41,11 +39,14 @@ export function ContributionCard({ moai }: { moai: MyMoai }) {
   const outstandingUSDC =
     monthly && monthly.length > 0 && !payment ? monthly : "0";
 
+  const memberActive = Boolean(voterId && isActiveMemberId(moai, voterId));
+
   const canPay =
     ready &&
     Boolean(monthly) &&
     monthly?.length &&
     Boolean(voterId) &&
+    memberActive &&
     Boolean(month) &&
     !payment;
 
@@ -53,6 +54,10 @@ export function ContributionCard({ moai }: { moai: MyMoai }) {
     setError(null);
     if (!voterId) {
       setError("Login to pay.");
+      return;
+    }
+    if (!memberActive) {
+      setError("Only active members can pay.");
       return;
     }
     if (!month) {
@@ -65,7 +70,7 @@ export function ContributionCard({ moai }: { moai: MyMoai }) {
     }
 
     setPayment(
-      markContributionPaid({
+      payContributionAction({
         moaiId: moai.id,
         month,
         voterId,

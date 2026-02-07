@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { getMeeting } from "@/lib/meetings";
+import { useCallback, useEffect, useState } from "react";
+import { getCheckInReceiptId, getMeeting } from "@/lib/meetings";
+import { isActiveMemberId, readMyMoai } from "@/lib/moai";
 import { readSession } from "@/lib/session";
+import { STORAGE_CHANGE_EVENT, type StorageChangeDetail } from "@/lib/storage";
 import { monthKey } from "@/lib/time";
 
 export function ActiveStatusCard({ moaiId }: { moaiId: string }) {
@@ -11,8 +13,9 @@ export function ActiveStatusCard({ moaiId }: { moaiId: string }) {
   const [voterId, setVoterId] = useState<string | null>(null);
   const [month, setMonth] = useState<string | null>(null);
   const [checkedInAt, setCheckedInAt] = useState<string | null>(null);
+  const [receiptId, setReceiptId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     const session = readSession();
     const id = session?.id ?? null;
     const m = monthKey(new Date());
@@ -20,16 +23,40 @@ export function ActiveStatusCard({ moaiId }: { moaiId: string }) {
     setVoterId(id);
     setMonth(m);
 
-    if (id) {
+    const moai = readMyMoai();
+    const memberActive = Boolean(moai && id && isActiveMemberId(moai, id));
+
+    if (id && memberActive) {
       const meeting = getMeeting(moaiId, m);
       const at = meeting?.attendanceByVoterId[id] ?? null;
       setCheckedInAt(at);
+      setReceiptId(getCheckInReceiptId({ moaiId, month: m, voterId: id }));
     } else {
       setCheckedInAt(null);
+      setReceiptId(null);
     }
 
     setReady(true);
   }, [moaiId]);
+
+  useEffect(() => {
+    refresh();
+
+    const onChanged = (evt: Event) => {
+      const detail = (evt as CustomEvent<StorageChangeDetail>).detail;
+      if (!detail?.key) return;
+      if (
+        detail.key !== "moai.meetings.v1" &&
+        detail.key !== "moai.session.v1" &&
+        detail.key !== "moai.myMoai.v1"
+      )
+        return;
+      refresh();
+    };
+
+    window.addEventListener(STORAGE_CHANGE_EVENT, onChanged);
+    return () => window.removeEventListener(STORAGE_CHANGE_EVENT, onChanged);
+  }, [refresh]);
 
   if (!ready) {
     return (
@@ -55,6 +82,14 @@ export function ActiveStatusCard({ moaiId }: { moaiId: string }) {
           {checkedInAt ? (
             <p className="mt-1 text-sm text-neutral-600">
               Checked in at {new Date(checkedInAt).toLocaleString(undefined)}.
+            </p>
+          ) : null}
+          {receiptId ? (
+            <p className="mt-1 text-sm text-neutral-600">
+              Receipt:{" "}
+              <span className="rounded bg-neutral-100 px-2 py-1 font-mono text-xs">
+                {receiptId.slice(0, 12)}…{receiptId.slice(-6)}
+              </span>
             </p>
           ) : null}
         </div>

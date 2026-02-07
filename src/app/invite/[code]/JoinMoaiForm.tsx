@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { joinMyMoaiByInviteCode, readMyMoai } from "@/lib/moai";
+import { joinMoaiAction } from "@/lib/actions";
+import { readMyMoai } from "@/lib/moai";
 import { createSession, readSession } from "@/lib/session";
 
 type Props = {
@@ -44,7 +45,7 @@ export function JoinMoaiForm({ inviteCode }: Props) {
 
   const onJoin = () => {
     const session = readSession() ?? createSession("email");
-    const result = joinMyMoaiByInviteCode({
+    const result = joinMoaiAction({
       inviteCode,
       memberId: session.id,
       member: {

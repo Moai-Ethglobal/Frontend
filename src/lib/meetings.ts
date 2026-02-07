@@ -6,6 +6,7 @@ export type Meeting = {
   month: string;
   scheduledAt: string;
   attendanceByVoterId: Record<string, string>;
+  attendanceReceiptIdByVoterId?: Record<string, string>;
   huddleRoomId?: string;
 };
 
@@ -72,11 +73,17 @@ export function checkInMeeting(input: {
     } satisfies Meeting);
 
   const now = new Date().toISOString();
+  const receiptId =
+    globalThis.crypto?.randomUUID?.() ?? `rcpt:${Date.now()}:${input.voterId}`;
   const next: Meeting = {
     ...current,
     attendanceByVoterId: {
       ...current.attendanceByVoterId,
       [input.voterId]: now,
+    },
+    attendanceReceiptIdByVoterId: {
+      ...(current.attendanceReceiptIdByVoterId ?? {}),
+      [input.voterId]: receiptId,
     },
   };
 
@@ -88,6 +95,15 @@ export function checkInMeeting(input: {
   ]);
 
   return next;
+}
+
+export function getCheckInReceiptId(input: {
+  moaiId: string;
+  month: string;
+  voterId: string;
+}): string | null {
+  const meeting = getMeeting(input.moaiId, input.month);
+  return meeting?.attendanceReceiptIdByVoterId?.[input.voterId] ?? null;
 }
 
 export function setMeetingRoomId(input: {

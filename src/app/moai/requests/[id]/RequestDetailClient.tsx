@@ -1,23 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import {
+  executeEmergencyWithdrawalAction,
+  voteRequestWithEffects,
+} from "@/lib/actions";
 import { hasCheckedIn } from "@/lib/meetings";
-import { readMyMoai } from "@/lib/moai";
+import type { MyMoai } from "@/lib/moai";
+import { isActiveMemberId, listActiveMembers, readMyMoai } from "@/lib/moai";
 import type { MoaiRequest } from "@/lib/requests";
 import {
-  executeEmergencyWithdrawalById,
   getRequestById,
   requestTypeLabel,
-  voteRequestById,
   votesNeededByType,
 } from "@/lib/requests";
 import { readSession } from "@/lib/session";
+import { STORAGE_CHANGE_EVENT, type StorageChangeDetail } from "@/lib/storage";
 import { monthKey } from "@/lib/time";
 
 export function RequestDetailClient({ requestId }: { requestId: string }) {
   const [request, setRequest] = useState<MoaiRequest | null>(null);
   const [ready, setReady] = useState(false);
+  const [moai, setMoai] = useState<MyMoai | null>(null);
   const [moaiId, setMoaiId] = useState<string | null>(null);
   const [memberCount, setMemberCount] = useState(0);
   const [voterId, setVoterId] = useState<string | null>(null);
@@ -25,15 +30,35 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [execError, setExecError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const moai = readMyMoai();
+  const refresh = useCallback(() => {
+    const currentMoai = readMyMoai();
+    setMoai(currentMoai);
     setRequest(getRequestById(requestId));
-    setMoaiId(moai?.id ?? null);
-    setMemberCount(moai?.members.length ?? 0);
+    setMoaiId(currentMoai?.id ?? null);
+    setMemberCount(currentMoai ? listActiveMembers(currentMoai).length : 0);
     setVoterId(readSession()?.id ?? null);
     setMonth(monthKey(new Date()));
     setReady(true);
   }, [requestId]);
+
+  useEffect(() => {
+    refresh();
+
+    const onChanged = (evt: Event) => {
+      const detail = (evt as CustomEvent<StorageChangeDetail>).detail;
+      if (!detail?.key) return;
+      if (
+        detail.key !== "moai.requests.v1" &&
+        detail.key !== "moai.myMoai.v1" &&
+        detail.key !== "moai.meetings.v1"
+      )
+        return;
+      refresh();
+    };
+
+    window.addEventListener(STORAGE_CHANGE_EVENT, onChanged);
+    return () => window.removeEventListener(STORAGE_CHANGE_EVENT, onChanged);
+  }, [refresh]);
 
   if (!ready) return <p className="mt-10 text-sm text-neutral-600">Loading…</p>;
 
@@ -69,10 +94,15 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
         ? `${request.newContributionUSDC} USDC / month`
         : `Subject: ${request.subjectMemberName}`;
 
+  const memberActive = Boolean(
+    moai && voterId && isActiveMemberId(moai, voterId),
+  );
+
   const activeThisMonth =
     Boolean(moaiId) &&
     Boolean(voterId) &&
     Boolean(month) &&
+    memberActive &&
     hasCheckedIn({
       moaiId: moaiId ?? "",
       month: month ?? "",
@@ -112,7 +142,7 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
       return;
     }
 
-    const result = voteRequestById({
+    const result = voteRequestWithEffects({
       requestId,
       choice,
       voterId,
@@ -133,6 +163,10 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
       setError(message);
       setRequest(getRequestById(requestId));
       return;
+    }
+
+    if (result.effects.applied && result.effects.errors.length > 0) {
+      setError("Vote saved, but an update couldn't be applied.");
     }
 
     setRequest(result.request);
@@ -169,7 +203,7 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
       return;
     }
 
-    const result = executeEmergencyWithdrawalById({
+    const result = executeEmergencyWithdrawalAction({
       requestId,
       executorId: voterId,
     });

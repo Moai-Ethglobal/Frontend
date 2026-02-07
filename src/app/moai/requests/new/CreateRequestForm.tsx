@@ -2,9 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { createRequestAction } from "@/lib/actions";
 import { readMyMoai } from "@/lib/moai";
 import type { CreateRequestInput } from "@/lib/requests";
-import { createRequest } from "@/lib/requests";
 
 type RequestType = Extract<
   CreateRequestInput["type"],
@@ -90,7 +90,7 @@ export function CreateRequestForm() {
       return;
     }
 
-    createRequest(input);
+    createRequestAction(input);
     router.push("/moai/requests");
   };
 

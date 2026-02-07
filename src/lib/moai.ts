@@ -1,9 +1,15 @@
+export type MemberStatus = "active" | "past";
+export type MemberPastReason = "awol" | "demise";
+
 export type MoaiMember = {
   id: string;
   displayName: string;
   email?: string;
   role: "creator" | "member";
   joinedAt: string;
+  status?: MemberStatus;
+  pastReason?: MemberPastReason;
+  pastAt?: string;
 };
 
 export type MyMoai = {
@@ -60,6 +66,7 @@ export function createMyMoai(input: {
         email: input.creator.email,
         role: "creator",
         joinedAt: now,
+        status: "active",
       },
     ],
   };
@@ -123,10 +130,86 @@ export function joinMyMoaiByInviteCode(input: {
         email: normalizedEmail,
         role: "member",
         joinedAt: now,
+        status: "active",
       },
     ],
   };
 
+  writeMyMoai(next);
+  return { ok: true, moai: next };
+}
+
+export function isMemberActive(member: MoaiMember): boolean {
+  return member.status !== "past";
+}
+
+export function listActiveMembers(moai: MyMoai): MoaiMember[] {
+  return moai.members.filter(isMemberActive);
+}
+
+export function isActiveMemberId(moai: MyMoai, memberId: string): boolean {
+  const id = memberId.trim();
+  if (!id.length) return false;
+  return moai.members.some((m) => m.id === id && isMemberActive(m));
+}
+
+export type MarkMemberPastError = "NO_MOAI" | "ID_MISMATCH" | "NOT_FOUND";
+
+export function markMemberPast(input: {
+  moaiId: string;
+  memberId: string;
+  reason: MemberPastReason;
+}):
+  | { ok: true; moai: MyMoai; member: MoaiMember }
+  | { ok: false; error: MarkMemberPastError } {
+  const moai = readMyMoai();
+  if (!moai) return { ok: false, error: "NO_MOAI" };
+  if (moai.id !== input.moaiId) return { ok: false, error: "ID_MISMATCH" };
+
+  const memberId = input.memberId.trim();
+  const idx = moai.members.findIndex((m) => m.id === memberId);
+  if (idx < 0) return { ok: false, error: "NOT_FOUND" };
+
+  const current = moai.members[idx];
+  const member: MoaiMember = {
+    ...current,
+    status: "past",
+    pastReason: input.reason,
+    pastAt: new Date().toISOString(),
+  };
+
+  const next: MyMoai = {
+    ...moai,
+    members: [
+      ...moai.members.slice(0, idx),
+      member,
+      ...moai.members.slice(idx + 1),
+    ],
+  };
+
+  writeMyMoai(next);
+  return { ok: true, moai: next, member };
+}
+
+export type SetMonthlyContributionError =
+  | "NO_MOAI"
+  | "ID_MISMATCH"
+  | "INVALID_AMOUNT";
+
+export function setMonthlyContributionUSDC(input: {
+  moaiId: string;
+  monthlyContributionUSDC: string;
+}):
+  | { ok: true; moai: MyMoai }
+  | { ok: false; error: SetMonthlyContributionError } {
+  const moai = readMyMoai();
+  if (!moai) return { ok: false, error: "NO_MOAI" };
+  if (moai.id !== input.moaiId) return { ok: false, error: "ID_MISMATCH" };
+
+  const value = input.monthlyContributionUSDC.trim();
+  if (!value.length) return { ok: false, error: "INVALID_AMOUNT" };
+
+  const next: MyMoai = { ...moai, monthlyContributionUSDC: value };
   writeMyMoai(next);
   return { ok: true, moai: next };
 }
