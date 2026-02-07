@@ -1,14 +1,13 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { PublicPage } from "@/components/PublicPage";
 import { RequestDetailClient } from "./RequestDetailClient";
 
-export default async function RequestDetailPage({
+export default function RequestDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
-
   return (
     <PublicPage>
       <h1 className="mt-12 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -18,7 +17,13 @@ export default async function RequestDetailPage({
         Details and approvals.
       </p>
 
-      <RequestDetailClient requestId={id} />
+      <Suspense
+        fallback={<p className="mt-10 text-sm text-neutral-600">Loading…</p>}
+      >
+        {params.then(({ id }) => (
+          <RequestDetailClient requestId={id} />
+        ))}
+      </Suspense>
 
       <div className="mt-12 border-t border-neutral-200 pt-6">
         <Link

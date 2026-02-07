@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Meeting } from "@/lib/meetings";
 import { checkInMeeting, ensureMeeting } from "@/lib/meetings";
 import { readMyMoai } from "@/lib/moai";
@@ -12,19 +12,20 @@ export function MeetingsClient() {
   const [ready, setReady] = useState(false);
   const [moaiId, setMoaiId] = useState<string | null>(null);
   const [voterId, setVoterId] = useState<string | null>(null);
+  const [month, setMonth] = useState<string | null>(null);
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const currentMonth = useMemo(() => monthKey(), []);
-
   useEffect(() => {
+    const currentMonth = monthKey(new Date());
     const moai = readMyMoai();
     const session = readSession();
     setMoaiId(moai?.id ?? null);
     setVoterId(session?.id ?? null);
+    setMonth(currentMonth);
     setMeeting(moai ? ensureMeeting(moai.id, currentMonth) : null);
     setReady(true);
-  }, [currentMonth]);
+  }, []);
 
   const checkedInAt = voterId
     ? meeting?.attendanceByVoterId[voterId]
@@ -45,11 +46,15 @@ export function MeetingsClient() {
       setError("Login to check in.");
       return;
     }
+    if (!month) {
+      setError("Missing month context.");
+      return;
+    }
 
     setMeeting(
       checkInMeeting({
         moaiId,
-        month: currentMonth,
+        month,
         voterId,
       }),
     );

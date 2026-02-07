@@ -20,6 +20,7 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
   const [moaiId, setMoaiId] = useState<string | null>(null);
   const [memberCount, setMemberCount] = useState(0);
   const [voterId, setVoterId] = useState<string | null>(null);
+  const [month, setMonth] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,6 +29,7 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
     setMoaiId(moai?.id ?? null);
     setMemberCount(moai?.members.length ?? 0);
     setVoterId(readSession()?.id ?? null);
+    setMonth(monthKey(new Date()));
     setReady(true);
   }, [requestId]);
 
@@ -65,9 +67,10 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
   const activeThisMonth =
     Boolean(moaiId) &&
     Boolean(voterId) &&
+    Boolean(month) &&
     hasCheckedIn({
       moaiId: moaiId ?? "",
-      month: monthKey(),
+      month: month ?? "",
       voterId: voterId ?? "",
     });
 
@@ -88,10 +91,14 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
       setError("Missing Moai context.");
       return;
     }
+    if (!month) {
+      setError("Missing month context.");
+      return;
+    }
     if (
       !hasCheckedIn({
         moaiId,
-        month: monthKey(),
+        month,
         voterId,
       })
     ) {

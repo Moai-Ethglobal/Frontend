@@ -21,7 +21,7 @@ export function ContributionCard({ moai }: { moai: MyMoai }) {
   useEffect(() => {
     const session = readSession();
     const nextVoterId = session?.id ?? null;
-    const nextMonth = monthKey();
+    const nextMonth = monthKey(new Date());
 
     setVoterId(nextVoterId);
     setMonth(nextMonth);
