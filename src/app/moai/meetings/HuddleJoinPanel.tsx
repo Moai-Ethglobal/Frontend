@@ -2,22 +2,31 @@
 
 import { HuddleClient, HuddleProvider } from "@huddle01/react";
 import { useRoom } from "@huddle01/react/hooks";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Props = {
   roomId: string;
   token: string;
+  autoJoin?: boolean;
+  onJoined?: () => void;
+  onLeft?: () => void;
 };
 
-function JoinControls({ roomId, token }: Props) {
+function JoinControls({ roomId, token, autoJoin, onJoined, onLeft }: Props) {
   const [error, setError] = useState<string | null>(null);
+  const lastAutoJoinKey = useRef<string | null>(null);
 
   const { state, joinRoom, leaveRoom } = useRoom({
+    onJoin: () => {
+      setError(null);
+      onJoined?.();
+    },
     onFailed: (data) => {
       setError(data.message);
     },
     onLeave: () => {
       setError(null);
+      onLeft?.();
     },
   });
 
@@ -32,6 +41,18 @@ function JoinControls({ roomId, token }: Props) {
       setError("Unable to join room.");
     }
   };
+
+  useEffect(() => {
+    if (!autoJoin) return;
+    if (!canJoin) return;
+    const key = `${roomId}:${token}`;
+    if (lastAutoJoinKey.current === key) return;
+    lastAutoJoinKey.current = key;
+    setError(null);
+    joinRoom({ roomId, token }).catch(() => {
+      setError("Unable to join room.");
+    });
+  }, [autoJoin, canJoin, joinRoom, roomId, token]);
 
   return (
     <div className="mt-4">
@@ -64,7 +85,13 @@ function JoinControls({ roomId, token }: Props) {
   );
 }
 
-export default function HuddleJoinPanel({ roomId, token }: Props) {
+export default function HuddleJoinPanel({
+  roomId,
+  token,
+  autoJoin,
+  onJoined,
+  onLeft,
+}: Props) {
   const projectId = process.env.NEXT_PUBLIC_HUDDLE_PROJECT_ID;
 
   const client = useMemo(() => {
@@ -89,7 +116,13 @@ export default function HuddleJoinPanel({ roomId, token }: Props) {
 
   return (
     <HuddleProvider client={client}>
-      <JoinControls roomId={roomId} token={token} />
+      <JoinControls
+        roomId={roomId}
+        token={token}
+        autoJoin={autoJoin}
+        onJoined={onJoined}
+        onLeft={onLeft}
+      />
     </HuddleProvider>
   );
 }

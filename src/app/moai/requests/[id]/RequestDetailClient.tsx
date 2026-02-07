@@ -10,7 +10,7 @@ import {
   getRequestById,
   requestTypeLabel,
   voteRequestById,
-  votesNeeded,
+  votesNeededByType,
 } from "@/lib/requests";
 import { readSession } from "@/lib/session";
 import { monthKey } from "@/lib/time";
@@ -58,13 +58,16 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
     Date.parse(request.expiresAt) <= Date.now();
   const status =
     expired && request.status === "open" ? "expired" : request.status;
-  const needed = memberCount > 0 ? votesNeeded(memberCount) : 0;
+  const needed =
+    memberCount > 0 ? votesNeededByType(request.type, memberCount) : 0;
   const myVote = voterId ? request.votesByVoterId?.[voterId] : undefined;
 
-  const amountLabel =
+  const rightLabel =
     request.type === "emergency_withdrawal"
       ? `${request.amountUSDC} USDC`
-      : `${request.newContributionUSDC} USDC / month`;
+      : request.type === "change_contribution"
+        ? `${request.newContributionUSDC} USDC / month`
+        : `Subject: ${request.subjectMemberName}`;
 
   const activeThisMonth =
     Boolean(moaiId) &&
@@ -201,7 +204,7 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
             </p>
           </div>
           <span className="text-sm font-medium text-neutral-900">
-            {amountLabel}
+            {rightLabel}
           </span>
         </div>
 
@@ -212,6 +215,40 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
               {request.beneficiaryName}
             </span>
           </p>
+        ) : null}
+
+        {request.type === "demise" || request.type === "awol" ? (
+          <div className="mt-3 text-sm text-neutral-700">
+            <p>
+              Subject:{" "}
+              <span className="font-medium text-neutral-900">
+                {request.subjectMemberName}
+              </span>
+            </p>
+
+            {request.proofs.length > 0 ? (
+              <div className="mt-2">
+                <p className="text-sm text-neutral-600">
+                  Proofs ({request.proofs.length})
+                </p>
+                <ul className="mt-2 space-y-2">
+                  {request.proofs.map((p) => (
+                    <li className="text-sm" key={p.id}>
+                      <span className="text-neutral-900">{p.name}</span>{" "}
+                      <span className="text-neutral-600">
+                        ({p.mime}, {Math.round(p.size / 1024)} KB)
+                      </span>
+                      <div className="mt-1">
+                        <span className="rounded bg-neutral-100 px-2 py-1 font-mono text-xs text-neutral-700">
+                          {p.sha256.slice(0, 16)}…{p.sha256.slice(-8)}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
         ) : null}
 
         {request.description.trim().length > 0 ? (

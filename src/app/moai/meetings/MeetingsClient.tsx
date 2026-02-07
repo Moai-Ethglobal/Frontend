@@ -3,8 +3,13 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { createHuddleRoom, getHuddleToken } from "@/lib/huddle";
 import type { Meeting } from "@/lib/meetings";
-import { checkInMeeting, ensureMeeting } from "@/lib/meetings";
+import {
+  checkInMeeting,
+  ensureMeeting,
+  setMeetingRoomId,
+} from "@/lib/meetings";
 import { readMyMoai } from "@/lib/moai";
 import { readSession } from "@/lib/session";
 import { monthKey } from "@/lib/time";
@@ -21,10 +26,10 @@ export function MeetingsClient() {
   const [month, setMonth] = useState<string | null>(null);
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [roomId, setRoomId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [huddleError, setHuddleError] = useState<string | null>(null);
   const [huddleLoading, setHuddleLoading] = useState(false);
+  const [autoJoin, setAutoJoin] = useState(false);
 
   useEffect(() => {
     const currentMonth = monthKey(new Date());
@@ -38,6 +43,8 @@ export function MeetingsClient() {
     setReady(true);
   }, []);
 
+  const roomId = meeting?.huddleRoomId ?? null;
+
   const checkedInAt = voterId
     ? meeting?.attendanceByVoterId[voterId]
     : undefined;
@@ -47,18 +54,19 @@ export function MeetingsClient() {
 
   const canCheckIn = Boolean(meeting) && Boolean(voterId) && !checkedInAt;
 
-  const onCheckIn = () => {
-    setError(null);
+  const onCheckIn = (input?: { silent?: boolean }) => {
+    if (checkedInAt) return;
+    if (!input?.silent) setError(null);
     if (!moaiId) {
-      setError("Create a Moai first.");
+      if (!input?.silent) setError("Create a Moai first.");
       return;
     }
     if (!voterId) {
-      setError("Login to check in.");
+      if (!input?.silent) setError("Login to check in.");
       return;
     }
     if (!month) {
-      setError("Missing month context.");
+      if (!input?.silent) setError("Missing month context.");
       return;
     }
 
@@ -120,33 +128,32 @@ export function MeetingsClient() {
   }
 
   const onCreateRoom = async () => {
+    setAutoJoin(false);
     setHuddleError(null);
     setHuddleLoading(true);
-    setRoomId(null);
     setToken(null);
     try {
-      const res = await fetch("/api/huddle/create-room", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          title: moaiName && month ? `${moaiName} · ${month}` : "Moai meeting",
-        }),
+      const result = await createHuddleRoom({
+        title: moaiName && month ? `${moaiName} · ${month}` : "Moai meeting",
       });
-      const json = (await res.json().catch(() => null)) as {
-        roomId?: unknown;
-        error?: unknown;
-      } | null;
-      const nextRoomId = json?.roomId;
-      if (
-        !res.ok ||
-        typeof nextRoomId !== "string" ||
-        nextRoomId.length === 0
-      ) {
-        setHuddleError("Unable to create room. Check HUDDLE_API_KEY.");
-        setHuddleLoading(false);
+
+      if (!result.ok) {
+        setHuddleError(result.error);
         return;
       }
-      setRoomId(nextRoomId);
+
+      if (!month) {
+        setHuddleError("Missing month context.");
+        return;
+      }
+
+      const nextMeeting = setMeetingRoomId({
+        moaiId,
+        month,
+        roomId: result.roomId,
+      });
+
+      setMeeting(nextMeeting);
     } catch {
       setHuddleError("Unable to create room.");
     } finally {
@@ -156,25 +163,71 @@ export function MeetingsClient() {
 
   const onGetToken = async () => {
     if (!roomId) return;
+    setAutoJoin(false);
     setHuddleError(null);
     setHuddleLoading(true);
     setToken(null);
     try {
-      const res = await fetch(
-        `/api/huddle/token?roomId=${encodeURIComponent(roomId)}`,
-      );
-      const json = (await res.json().catch(() => null)) as {
-        token?: unknown;
-      } | null;
-      const nextToken = json?.token;
-      if (!res.ok || typeof nextToken !== "string" || nextToken.length === 0) {
-        setHuddleError("Unable to generate token. Check HUDDLE_API_KEY.");
-        setHuddleLoading(false);
+      const result = await getHuddleToken({ roomId });
+      if (!result.ok) {
+        setHuddleError(result.error);
         return;
       }
-      setToken(nextToken);
+      setToken(result.token);
     } catch {
       setHuddleError("Unable to generate token.");
+    } finally {
+      setHuddleLoading(false);
+    }
+  };
+
+  const onStartMeeting = async () => {
+    setAutoJoin(true);
+    setHuddleError(null);
+    setHuddleLoading(true);
+    setToken(null);
+
+    try {
+      let ensuredRoomId = roomId;
+
+      if (!ensuredRoomId) {
+        const created = await createHuddleRoom({
+          title: moaiName && month ? `${moaiName} · ${month}` : "Moai meeting",
+        });
+
+        if (!created.ok) {
+          setHuddleError(created.error);
+          setAutoJoin(false);
+          return;
+        }
+
+        if (!month) {
+          setHuddleError("Missing month context.");
+          setAutoJoin(false);
+          return;
+        }
+
+        const nextMeeting = setMeetingRoomId({
+          moaiId,
+          month,
+          roomId: created.roomId,
+        });
+
+        setMeeting(nextMeeting);
+        ensuredRoomId = created.roomId;
+      }
+
+      const tok = await getHuddleToken({ roomId: ensuredRoomId });
+      if (!tok.ok) {
+        setHuddleError(tok.error);
+        setAutoJoin(false);
+        return;
+      }
+
+      setToken(tok.token);
+    } catch {
+      setHuddleError("Unable to start meeting.");
+      setAutoJoin(false);
     } finally {
       setHuddleLoading(false);
     }
@@ -203,7 +256,7 @@ export function MeetingsClient() {
             className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             type="button"
             disabled={!canCheckIn}
-            onClick={onCheckIn}
+            onClick={() => onCheckIn()}
           >
             Check in
           </button>
@@ -223,10 +276,21 @@ export function MeetingsClient() {
         <p className="mt-2 text-sm text-neutral-700">
           Room and access token are generated server-side.
         </p>
+        <p className="mt-2 text-sm text-neutral-600">
+          Joining the room will auto check-in for this month.
+        </p>
 
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <button
             className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            type="button"
+            disabled={huddleLoading}
+            onClick={() => void onStartMeeting()}
+          >
+            {huddleLoading ? "Preparing…" : "Start meeting"}
+          </button>
+          <button
+            className="inline-flex items-center justify-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-900 disabled:opacity-50"
             type="button"
             disabled={huddleLoading}
             onClick={() => void onCreateRoom()}
@@ -266,7 +330,12 @@ export function MeetingsClient() {
         ) : null}
 
         {roomId && token ? (
-          <HuddleJoinPanel roomId={roomId} token={token} />
+          <HuddleJoinPanel
+            roomId={roomId}
+            token={token}
+            autoJoin={autoJoin}
+            onJoined={() => onCheckIn({ silent: true })}
+          />
         ) : null}
 
         <p className="mt-3 text-sm text-neutral-600">

@@ -155,6 +155,21 @@ export function MyMoaiClient() {
           Emergency withdrawals and other approvals.
         </p>
       </div>
+
+      <div className="mt-10 rounded-xl border border-neutral-200 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold">Demise / AWOL</h2>
+          <Link
+            className="text-neutral-900 hover:underline"
+            href="/moai/demise"
+          >
+            Open
+          </Link>
+        </div>
+        <p className="mt-2 text-sm text-neutral-700">
+          Submit reports with proof attachments for member status changes.
+        </p>
+      </div>
     </>
   );
 }

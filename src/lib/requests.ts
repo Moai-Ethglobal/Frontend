@@ -1,3 +1,4 @@
+import type { ProofRef } from "./proofs";
 import { readJson, writeJson } from "./storage";
 
 export type RequestStatus = "open" | "passed" | "rejected" | "expired";
@@ -35,9 +36,26 @@ export type ContributionChangeRequest = {
   votesByVoterId?: Record<string, VoteChoice>;
 };
 
+export type MemberStatusRequest = {
+  id: string;
+  moaiId: string;
+  type: "demise" | "awol";
+  title: string;
+  description: string;
+  subjectMemberId: string;
+  subjectMemberName: string;
+  proofs: ProofRef[];
+  status: RequestStatus;
+  createdAt: string;
+  expiresAt: string;
+  votes: { yes: number; no: number };
+  votesByVoterId?: Record<string, VoteChoice>;
+};
+
 export type MoaiRequest =
   | EmergencyWithdrawalRequest
-  | ContributionChangeRequest;
+  | ContributionChangeRequest
+  | MemberStatusRequest;
 
 export type CreateRequestInput =
   | Omit<
@@ -54,6 +72,10 @@ export type CreateRequestInput =
     >
   | Omit<
       ContributionChangeRequest,
+      "id" | "status" | "createdAt" | "expiresAt" | "votes" | "votesByVoterId"
+    >
+  | Omit<
+      MemberStatusRequest,
       "id" | "status" | "createdAt" | "expiresAt" | "votes" | "votesByVoterId"
     >;
 
@@ -92,10 +114,19 @@ export function votesNeeded(memberCount: number): number {
   return Math.floor(memberCount / 2) + 1;
 }
 
+export function votesNeededByType(
+  type: MoaiRequest["type"],
+  memberCount: number,
+): number {
+  if (type === "demise" || type === "awol") return Math.min(2, memberCount);
+  return votesNeeded(memberCount);
+}
+
 export function requestTypeLabel(type: MoaiRequest["type"]): string {
-  return type === "emergency_withdrawal"
-    ? "Emergency withdrawal"
-    : "Contribution change";
+  if (type === "emergency_withdrawal") return "Emergency withdrawal";
+  if (type === "change_contribution") return "Contribution change";
+  if (type === "demise") return "Demise report";
+  return "AWOL report";
 }
 
 export function createRequest(input: CreateRequestInput): MoaiRequest {
@@ -121,11 +152,19 @@ export function createRequest(input: CreateRequestInput): MoaiRequest {
           beneficiaryName: input.beneficiaryName.trim(),
           amountUSDC: input.amountUSDC.trim(),
         }
-      : {
-          ...base,
-          type: "change_contribution",
-          newContributionUSDC: input.newContributionUSDC.trim(),
-        };
+      : input.type === "change_contribution"
+        ? {
+            ...base,
+            type: "change_contribution",
+            newContributionUSDC: input.newContributionUSDC.trim(),
+          }
+        : {
+            ...base,
+            type: input.type,
+            subjectMemberId: input.subjectMemberId.trim(),
+            subjectMemberName: input.subjectMemberName.trim(),
+            proofs: Array.isArray(input.proofs) ? input.proofs : [],
+          };
 
   writeAll([request, ...readAll()]);
   return request;
@@ -187,7 +226,7 @@ export function voteRequestById(input: {
 
   votesByVoterId[input.voterId] = input.choice;
 
-  const needed = votesNeeded(memberCount);
+  const needed = votesNeededByType(current.type, memberCount);
   const status: RequestStatus =
     votes.yes >= needed ? "passed" : votes.no >= needed ? "rejected" : "open";
 

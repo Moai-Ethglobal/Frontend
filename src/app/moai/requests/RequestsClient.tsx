@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { readMyMoai } from "@/lib/moai";
 import type { MoaiRequest } from "@/lib/requests";
 import {
   listRequestsByMoaiId,
   requestTypeLabel,
-  votesNeeded,
+  votesNeededByType,
 } from "@/lib/requests";
 
 export function RequestsClient() {
@@ -28,8 +28,6 @@ export function RequestsClient() {
     setRequests(listRequestsByMoaiId(moai.id));
     setReady(true);
   }, []);
-
-  const needed = useMemo(() => votesNeeded(memberCount), [memberCount]);
 
   if (!ready) return <p className="mt-10 text-sm text-neutral-600">Loading…</p>;
 
@@ -70,14 +68,13 @@ export function RequestsClient() {
   return (
     <div className="mt-12 space-y-4">
       {requests.map((r) => {
-        const amount =
+        const rightLabel =
           r.type === "emergency_withdrawal"
-            ? r.amountUSDC
-            : r.newContributionUSDC;
-        const amountLabel =
-          r.type === "emergency_withdrawal"
-            ? `${amount} USDC`
-            : `${amount} USDC / month`;
+            ? `${r.amountUSDC} USDC`
+            : r.type === "change_contribution"
+              ? `${r.newContributionUSDC} USDC / month`
+              : `Subject: ${r.subjectMemberName}`;
+        const needed = votesNeededByType(r.type, memberCount);
 
         return (
           <div className="rounded-xl border border-neutral-200 p-4" key={r.id}>
@@ -91,7 +88,7 @@ export function RequestsClient() {
                 </p>
               </div>
               <span className="text-sm font-medium text-neutral-900">
-                {amountLabel}
+                {rightLabel}
               </span>
             </div>
 

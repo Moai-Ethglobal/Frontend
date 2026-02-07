@@ -6,7 +6,10 @@ import { readMyMoai } from "@/lib/moai";
 import type { CreateRequestInput } from "@/lib/requests";
 import { createRequest } from "@/lib/requests";
 
-type RequestType = CreateRequestInput["type"];
+type RequestType = Extract<
+  CreateRequestInput["type"],
+  "emergency_withdrawal" | "change_contribution"
+>;
 
 export function CreateRequestForm() {
   const router = useRouter();

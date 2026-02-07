@@ -6,6 +6,7 @@ export type Meeting = {
   month: string;
   scheduledAt: string;
   attendanceByVoterId: Record<string, string>;
+  huddleRoomId?: string;
 };
 
 const STORAGE_KEY = "moai.meetings.v1";
@@ -77,6 +78,38 @@ export function checkInMeeting(input: {
       ...current.attendanceByVoterId,
       [input.voterId]: now,
     },
+  };
+
+  writeAll([
+    next,
+    ...all.filter(
+      (m) => !(m.moaiId === input.moaiId && m.month === input.month),
+    ),
+  ]);
+
+  return next;
+}
+
+export function setMeetingRoomId(input: {
+  moaiId: string;
+  month: string;
+  roomId: string;
+}): Meeting {
+  const all = readAll();
+  const current =
+    all.find((m) => m.moaiId === input.moaiId && m.month === input.month) ??
+    ({
+      id: makeId(),
+      moaiId: input.moaiId,
+      month: input.month,
+      scheduledAt: defaultScheduledAt(input.month),
+      attendanceByVoterId: {},
+    } satisfies Meeting);
+
+  const roomId = input.roomId.trim();
+  const next: Meeting = {
+    ...current,
+    huddleRoomId: roomId.length ? roomId : undefined,
   };
 
   writeAll([
