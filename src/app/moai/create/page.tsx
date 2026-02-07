@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PublicPage } from "@/components/PublicPage";
+import { CreateMoaiForm } from "./CreateMoaiForm";
 
 export default function CreateMoaiPage() {
   return (
@@ -12,68 +13,7 @@ export default function CreateMoaiPage() {
         contributions and meetings.
       </p>
 
-      <form className="mt-10 space-y-6">
-        <div>
-          <label
-            className="text-sm font-medium text-neutral-900"
-            htmlFor="moaiName"
-          >
-            Moai name
-          </label>
-          <input
-            className="mt-2 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400"
-            id="moaiName"
-            name="moaiName"
-            placeholder="e.g. Sunny Circle"
-            type="text"
-          />
-        </div>
-
-        <div>
-          <label
-            className="text-sm font-medium text-neutral-900"
-            htmlFor="displayName"
-          >
-            Your name
-          </label>
-          <input
-            className="mt-2 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400"
-            id="displayName"
-            name="displayName"
-            placeholder="e.g. Kun"
-            type="text"
-          />
-        </div>
-
-        <div>
-          <label
-            className="text-sm font-medium text-neutral-900"
-            htmlFor="email"
-          >
-            Email
-          </label>
-          <input
-            className="mt-2 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400"
-            id="email"
-            name="email"
-            placeholder="you@example.com"
-            type="email"
-          />
-        </div>
-
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-neutral-600">
-            This is UI-only for now. Next step: generate an invite link.
-          </p>
-          <button
-            className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white opacity-50"
-            type="button"
-            disabled
-          >
-            Create Moai
-          </button>
-        </div>
-      </form>
+      <CreateMoaiForm />
 
       <div className="mt-12 border-t border-neutral-200 pt-6">
         <Link
