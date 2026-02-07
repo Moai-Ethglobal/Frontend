@@ -18,12 +18,23 @@ export function writeSession(value: Session | null): void {
   writeJson(STORAGE_KEY, value);
 }
 
-export function createSession(method: SessionMethod): Session {
+export function createSessionWithId(
+  method: SessionMethod,
+  id: string,
+): Session {
+  const nextId = id.trim();
   const session: Session = {
-    id: globalThis.crypto?.randomUUID?.() ?? `${method}:${Date.now()}`,
+    id: nextId.length > 0 ? nextId : `${method}:${Date.now()}`,
     method,
     createdAt: new Date().toISOString(),
   };
   writeSession(session);
   return session;
+}
+
+export function createSession(method: SessionMethod): Session {
+  return createSessionWithId(
+    method,
+    globalThis.crypto?.randomUUID?.() ?? `${method}:${Date.now()}`,
+  );
 }

@@ -2,17 +2,38 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { createSession, readSession, writeSession } from "@/lib/session";
+import {
+  createSession,
+  createSessionWithId,
+  readSession,
+  writeSession,
+} from "@/lib/session";
+import { requestWalletAccounts } from "@/lib/wallet";
 
 export function AuthActions() {
   const router = useRouter();
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setSignedIn(Boolean(readSession()));
   }, []);
 
-  const onLogin = (method: "passkey" | "email" | "wallet") => {
+  const onLogin = async (method: "passkey" | "email" | "wallet") => {
+    setError(null);
+    if (method === "wallet") {
+      const accounts = await requestWalletAccounts();
+      const address = accounts?.[0];
+      if (!address) {
+        setError("No wallet account available.");
+        return;
+      }
+      createSessionWithId("wallet", address.trim().toLowerCase());
+      setSignedIn(true);
+      router.push("/moai");
+      return;
+    }
+
     createSession(method);
     setSignedIn(true);
     router.push("/moai");
@@ -68,24 +89,25 @@ export function AuthActions() {
       <button
         className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
         type="button"
-        onClick={() => onLogin("passkey")}
+        onClick={() => void onLogin("passkey")}
       >
         Continue with passkey
       </button>
       <button
         className="inline-flex items-center justify-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-50"
         type="button"
-        onClick={() => onLogin("email")}
+        onClick={() => void onLogin("email")}
       >
         Continue with email
       </button>
       <button
         className="inline-flex items-center justify-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-50"
         type="button"
-        onClick={() => onLogin("wallet")}
+        onClick={() => void onLogin("wallet")}
       >
         Connect wallet
       </button>
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
     </div>
   );
 }
