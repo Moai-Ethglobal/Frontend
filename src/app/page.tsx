@@ -28,9 +28,15 @@ export default function Page() {
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link
             className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+            href="/moai/create"
+          >
+            Create Moai
+          </Link>
+          <Link
+            className="inline-flex items-center justify-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-50"
             href="/learn"
           >
-            Learn how Moai works
+            Learn
           </Link>
         </div>
 
