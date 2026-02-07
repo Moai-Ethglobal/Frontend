@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PublicPage } from "@/components/PublicPage";
+import { CreateRequestForm } from "./CreateRequestForm";
 
 export default function CreateRequestPage() {
   return (
@@ -10,10 +11,7 @@ export default function CreateRequestPage() {
       <p className="mt-3 text-pretty text-base leading-7 text-neutral-800">
         Create an emergency withdrawal or a contribution change request.
       </p>
-
-      <div className="mt-10 rounded-xl border border-neutral-200 p-4">
-        <p className="text-sm text-neutral-700">Form UI will be added next.</p>
-      </div>
+      <CreateRequestForm />
 
       <div className="mt-12 border-t border-neutral-200 pt-6">
         <Link

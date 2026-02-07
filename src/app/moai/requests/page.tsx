@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PublicPage } from "@/components/PublicPage";
+import { RequestsClient } from "./RequestsClient";
 
 export default function RequestsPage() {
   return (
@@ -25,10 +26,7 @@ export default function RequestsPage() {
           Back to My Moai
         </Link>
       </div>
-
-      <div className="mt-12 rounded-xl border border-neutral-200 p-4">
-        <p className="text-sm text-neutral-700">No requests yet.</p>
-      </div>
+      <RequestsClient />
     </PublicPage>
   );
 }

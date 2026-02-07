@@ -6,38 +6,16 @@ export type Session = {
   createdAt: string;
 };
 
+import { readJson, writeJson } from "./storage";
+
 const STORAGE_KEY = "moai.session.v1";
 
-function safeParse<T>(value: string): T | null {
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return null;
-  }
-}
-
 export function readSession(): Session | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return safeParse<Session>(raw);
-  } catch {
-    return null;
-  }
+  return readJson<Session>(STORAGE_KEY);
 }
 
 export function writeSession(value: Session | null): void {
-  if (typeof window === "undefined") return;
-  try {
-    if (!value) {
-      window.localStorage.removeItem(STORAGE_KEY);
-      return;
-    }
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
-  } catch {
-    // ignore
-  }
+  writeJson(STORAGE_KEY, value);
 }
 
 export function createSession(method: SessionMethod): Session {
