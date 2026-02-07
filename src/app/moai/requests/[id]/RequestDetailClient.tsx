@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { hasCheckedIn, monthKey } from "@/lib/meetings";
 import { readMyMoai } from "@/lib/moai";
 import type { MoaiRequest } from "@/lib/requests";
 import {
@@ -15,13 +16,16 @@ import { readSession } from "@/lib/session";
 export function RequestDetailClient({ requestId }: { requestId: string }) {
   const [request, setRequest] = useState<MoaiRequest | null>(null);
   const [ready, setReady] = useState(false);
+  const [moaiId, setMoaiId] = useState<string | null>(null);
   const [memberCount, setMemberCount] = useState(0);
   const [voterId, setVoterId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const moai = readMyMoai();
     setRequest(getRequestById(requestId));
-    setMemberCount(readMyMoai()?.members.length ?? 0);
+    setMoaiId(moai?.id ?? null);
+    setMemberCount(moai?.members.length ?? 0);
     setVoterId(readSession()?.id ?? null);
     setReady(true);
   }, [requestId]);
@@ -57,12 +61,40 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
       ? `${request.amountUSDC} USDC`
       : `${request.newContributionUSDC} USDC / month`;
 
-  const canVote = Boolean(voterId) && status === "open" && memberCount > 0;
+  const activeThisMonth =
+    Boolean(moaiId) &&
+    Boolean(voterId) &&
+    hasCheckedIn({
+      moaiId: moaiId ?? "",
+      month: monthKey(),
+      voterId: voterId ?? "",
+    });
+
+  const canVote =
+    Boolean(voterId) &&
+    Boolean(moaiId) &&
+    activeThisMonth &&
+    status === "open" &&
+    memberCount > 0;
 
   const onVote = (choice: "yes" | "no") => {
     setError(null);
     if (!voterId) {
       setError("Login to vote.");
+      return;
+    }
+    if (!moaiId) {
+      setError("Missing Moai context.");
+      return;
+    }
+    if (
+      !hasCheckedIn({
+        moaiId,
+        month: monthKey(),
+        voterId,
+      })
+    ) {
+      setError("Check in for this month to vote.");
       return;
     }
 
@@ -148,8 +180,20 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
             >
               Login
             </Link>
+          ) : !activeThisMonth ? (
+            <Link
+              className="text-sm font-medium text-neutral-900 hover:underline"
+              href="/moai/meetings"
+            >
+              Check in
+            </Link>
           ) : null}
         </div>
+        {!activeThisMonth && voterId ? (
+          <p className="mt-3 text-sm text-neutral-700">
+            Not active this month. Check in at the monthly meeting to vote.
+          </p>
+        ) : null}
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <button
             className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"

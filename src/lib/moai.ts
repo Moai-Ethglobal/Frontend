@@ -10,6 +10,7 @@ export type MyMoai = {
   id: string;
   name: string;
   inviteCode: string;
+  monthlyContributionUSDC?: string;
   createdAt: string;
   members: MoaiMember[];
 };
@@ -30,16 +31,22 @@ export function writeMyMoai(value: MyMoai | null): void {
 export function createMyMoai(input: {
   name: string;
   inviteCode: string;
+  monthlyContributionUSDC?: string;
   creator: { displayName: string; email?: string };
 }): MyMoai {
   const now = new Date().toISOString();
   const id = globalThis.crypto?.randomUUID?.() ?? input.inviteCode;
   const creatorId = globalThis.crypto?.randomUUID?.() ?? `${id}:creator`;
+  const monthlyContributionUSDC = input.monthlyContributionUSDC?.trim();
 
   const moai: MyMoai = {
     id,
     name: input.name,
     inviteCode: input.inviteCode,
+    monthlyContributionUSDC:
+      monthlyContributionUSDC && monthlyContributionUSDC.length > 0
+        ? monthlyContributionUSDC
+        : undefined,
     createdAt: now,
     members: [
       {

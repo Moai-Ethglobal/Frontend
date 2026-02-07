@@ -11,6 +11,7 @@ type FieldProps = {
   name: string;
   placeholder?: string;
   type?: "text" | "email";
+  inputMode?: "text" | "decimal";
   value: string;
   onChange: (value: string) => void;
 };
@@ -21,6 +22,7 @@ function Field({
   name,
   placeholder,
   type = "text",
+  inputMode = "text",
   value,
   onChange,
 }: FieldProps) {
@@ -35,6 +37,7 @@ function Field({
         name={name}
         placeholder={placeholder}
         type={type}
+        inputMode={inputMode}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -44,6 +47,7 @@ function Field({
 
 export function CreateMoaiForm() {
   const [moaiName, setMoaiName] = useState("");
+  const [monthlyContributionUSDC, setMonthlyContributionUSDC] = useState("50");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [inviteCode, setInviteCode] = useState<string | null>(null);
@@ -59,13 +63,17 @@ export function CreateMoaiForm() {
     return `${window.location.origin}${createdInvitePath}`;
   }, [createdInvitePath]);
 
-  const canCreate = moaiName.trim().length > 0 && displayName.trim().length > 0;
+  const canCreate =
+    moaiName.trim().length > 0 &&
+    displayName.trim().length > 0 &&
+    monthlyContributionUSDC.trim().length > 0;
 
   const onCreate = () => {
     const code = generateInviteCode();
     createMyMoai({
       name: moaiName.trim(),
       inviteCode: code,
+      monthlyContributionUSDC: monthlyContributionUSDC.trim(),
       creator: {
         displayName: displayName.trim(),
         email: email.trim().length > 0 ? email.trim() : undefined,
@@ -95,6 +103,15 @@ export function CreateMoaiForm() {
           placeholder="e.g. Sunny Circle"
           value={moaiName}
           onChange={setMoaiName}
+        />
+        <Field
+          id="monthlyContributionUSDC"
+          label="Monthly contribution (USDC)"
+          name="monthlyContributionUSDC"
+          placeholder="e.g. 50"
+          inputMode="decimal"
+          value={monthlyContributionUSDC}
+          onChange={setMonthlyContributionUSDC}
         />
         <Field
           id="displayName"

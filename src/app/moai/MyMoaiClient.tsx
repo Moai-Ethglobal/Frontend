@@ -83,6 +83,17 @@ export function MyMoaiClient() {
       </div>
 
       <div className="mt-10 rounded-xl border border-neutral-200 p-4">
+        <h2 className="text-sm font-semibold">Contribution</h2>
+        <p className="mt-2 text-sm text-neutral-700">
+          Monthly:{" "}
+          <span className="font-medium text-neutral-900">
+            {moai.monthlyContributionUSDC ?? "Not set"}
+          </span>
+          {moai.monthlyContributionUSDC ? " USDC" : null}
+        </p>
+      </div>
+
+      <div className="mt-10 rounded-xl border border-neutral-200 p-4">
         <h2 className="text-sm font-semibold">Members</h2>
         <ul className="mt-3 space-y-2">
           {moai.members.map((m) => (

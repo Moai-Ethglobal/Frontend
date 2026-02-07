@@ -96,3 +96,12 @@ export function checkInMeeting(input: {
 
   return next;
 }
+
+export function hasCheckedIn(input: {
+  moaiId: string;
+  month: string;
+  voterId: string;
+}): boolean {
+  const meeting = getMeeting(input.moaiId, input.month);
+  return Boolean(meeting?.attendanceByVoterId[input.voterId]);
+}
