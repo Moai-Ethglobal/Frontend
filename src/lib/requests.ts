@@ -1,6 +1,7 @@
 import { readJson, writeJson } from "./storage";
 
 export type RequestStatus = "open" | "passed" | "rejected" | "expired";
+export type VoteChoice = "yes" | "no";
 
 export type EmergencyWithdrawalRequest = {
   id: string;
@@ -14,6 +15,7 @@ export type EmergencyWithdrawalRequest = {
   createdAt: string;
   expiresAt: string;
   votes: { yes: number; no: number };
+  votesByVoterId?: Record<string, VoteChoice>;
 };
 
 export type ContributionChangeRequest = {
@@ -27,6 +29,7 @@ export type ContributionChangeRequest = {
   createdAt: string;
   expiresAt: string;
   votes: { yes: number; no: number };
+  votesByVoterId?: Record<string, VoteChoice>;
 };
 
 export type MoaiRequest =
@@ -36,11 +39,11 @@ export type MoaiRequest =
 export type CreateRequestInput =
   | Omit<
       EmergencyWithdrawalRequest,
-      "id" | "status" | "createdAt" | "expiresAt" | "votes"
+      "id" | "status" | "createdAt" | "expiresAt" | "votes" | "votesByVoterId"
     >
   | Omit<
       ContributionChangeRequest,
-      "id" | "status" | "createdAt" | "expiresAt" | "votes"
+      "id" | "status" | "createdAt" | "expiresAt" | "votes" | "votesByVoterId"
     >;
 
 const STORAGE_KEY = "moai.requests.v1";
@@ -74,6 +77,16 @@ export function getRequestById(requestId: string): MoaiRequest | null {
   return readAll().find((r) => r.id === requestId) ?? null;
 }
 
+export function votesNeeded(memberCount: number): number {
+  return Math.floor(memberCount / 2) + 1;
+}
+
+export function requestTypeLabel(type: MoaiRequest["type"]): string {
+  return type === "emergency_withdrawal"
+    ? "Emergency withdrawal"
+    : "Contribution change";
+}
+
 export function createRequest(input: CreateRequestInput): MoaiRequest {
   const { createdAt, expiresAt } = nowIso();
 
@@ -86,6 +99,7 @@ export function createRequest(input: CreateRequestInput): MoaiRequest {
     createdAt,
     expiresAt,
     votes: { yes: 0, no: 0 },
+    votesByVoterId: {},
   };
 
   const request: MoaiRequest =
@@ -104,4 +118,76 @@ export function createRequest(input: CreateRequestInput): MoaiRequest {
 
   writeAll([request, ...readAll()]);
   return request;
+}
+
+export type VoteRequestError =
+  | "NOT_FOUND"
+  | "NOT_OPEN"
+  | "EXPIRED"
+  | "INVALID_CONTEXT"
+  | "INVALID_VOTER";
+
+export function voteRequestById(input: {
+  requestId: string;
+  choice: VoteChoice;
+  voterId: string;
+  memberCount: number;
+}):
+  | { ok: true; request: MoaiRequest }
+  | { ok: false; error: VoteRequestError } {
+  const memberCount = Math.floor(input.memberCount);
+  if (!Number.isFinite(memberCount) || memberCount <= 0) {
+    return { ok: false, error: "INVALID_CONTEXT" };
+  }
+  if (input.voterId.trim().length === 0)
+    return { ok: false, error: "INVALID_VOTER" };
+
+  const all = readAll();
+  const idx = all.findIndex((r) => r.id === input.requestId);
+  if (idx < 0) return { ok: false, error: "NOT_FOUND" };
+
+  const current = all[idx];
+  const expired =
+    Number.isFinite(Date.parse(current.expiresAt)) &&
+    Date.parse(current.expiresAt) <= Date.now();
+
+  if (expired) {
+    if (current.status === "open") {
+      const next = { ...current, status: "expired" as const };
+      all[idx] = next;
+      writeAll(all);
+    }
+    return { ok: false, error: "EXPIRED" };
+  }
+
+  if (current.status !== "open") return { ok: false, error: "NOT_OPEN" };
+
+  const votesByVoterId = { ...(current.votesByVoterId ?? {}) };
+  const prev = votesByVoterId[input.voterId];
+
+  if (prev === input.choice) return { ok: true, request: current };
+
+  const votes = { ...current.votes };
+  if (prev === "yes") votes.yes = Math.max(0, votes.yes - 1);
+  if (prev === "no") votes.no = Math.max(0, votes.no - 1);
+
+  if (input.choice === "yes") votes.yes += 1;
+  if (input.choice === "no") votes.no += 1;
+
+  votesByVoterId[input.voterId] = input.choice;
+
+  const needed = votesNeeded(memberCount);
+  const status: RequestStatus =
+    votes.yes >= needed ? "passed" : votes.no >= needed ? "rejected" : "open";
+
+  const next: MoaiRequest = {
+    ...current,
+    status,
+    votes,
+    votesByVoterId,
+  };
+
+  all[idx] = next;
+  writeAll(all);
+  return { ok: true, request: next };
 }

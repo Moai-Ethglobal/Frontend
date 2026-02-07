@@ -4,17 +4,11 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { readMyMoai } from "@/lib/moai";
 import type { MoaiRequest } from "@/lib/requests";
-import { listRequestsByMoaiId } from "@/lib/requests";
-
-function votesNeeded(memberCount: number): number {
-  return Math.floor(memberCount / 2) + 1;
-}
-
-function formatType(type: MoaiRequest["type"]): string {
-  return type === "emergency_withdrawal"
-    ? "Emergency withdrawal"
-    : "Contribution change";
-}
+import {
+  listRequestsByMoaiId,
+  requestTypeLabel,
+  votesNeeded,
+} from "@/lib/requests";
 
 export function RequestsClient() {
   const [ready, setReady] = useState(false);
@@ -93,7 +87,7 @@ export function RequestsClient() {
                   {r.title}
                 </p>
                 <p className="mt-1 text-sm text-neutral-700">
-                  {formatType(r.type)}
+                  {requestTypeLabel(r.type)}
                 </p>
               </div>
               <span className="text-sm font-medium text-neutral-900">

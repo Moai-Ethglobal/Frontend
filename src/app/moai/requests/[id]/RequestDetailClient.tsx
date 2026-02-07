@@ -2,21 +2,27 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { readMyMoai } from "@/lib/moai";
 import type { MoaiRequest } from "@/lib/requests";
-import { getRequestById } from "@/lib/requests";
-
-function formatType(type: MoaiRequest["type"]): string {
-  return type === "emergency_withdrawal"
-    ? "Emergency withdrawal"
-    : "Contribution change";
-}
+import {
+  getRequestById,
+  requestTypeLabel,
+  voteRequestById,
+  votesNeeded,
+} from "@/lib/requests";
+import { readSession } from "@/lib/session";
 
 export function RequestDetailClient({ requestId }: { requestId: string }) {
   const [request, setRequest] = useState<MoaiRequest | null>(null);
   const [ready, setReady] = useState(false);
+  const [memberCount, setMemberCount] = useState(0);
+  const [voterId, setVoterId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setRequest(getRequestById(requestId));
+    setMemberCount(readMyMoai()?.members.length ?? 0);
+    setVoterId(readSession()?.id ?? null);
     setReady(true);
   }, [requestId]);
 
@@ -38,10 +44,53 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
     );
   }
 
+  const expired =
+    Number.isFinite(Date.parse(request.expiresAt)) &&
+    Date.parse(request.expiresAt) <= Date.now();
+  const status =
+    expired && request.status === "open" ? "expired" : request.status;
+  const needed = memberCount > 0 ? votesNeeded(memberCount) : 0;
+  const myVote = voterId ? request.votesByVoterId?.[voterId] : undefined;
+
   const amountLabel =
     request.type === "emergency_withdrawal"
       ? `${request.amountUSDC} USDC`
       : `${request.newContributionUSDC} USDC / month`;
+
+  const canVote = Boolean(voterId) && status === "open" && memberCount > 0;
+
+  const onVote = (choice: "yes" | "no") => {
+    setError(null);
+    if (!voterId) {
+      setError("Login to vote.");
+      return;
+    }
+
+    const result = voteRequestById({
+      requestId,
+      choice,
+      voterId,
+      memberCount,
+    });
+
+    if (!result.ok) {
+      const message =
+        result.error === "EXPIRED"
+          ? "This request has expired."
+          : result.error === "NOT_OPEN"
+            ? "Voting is closed for this request."
+            : result.error === "INVALID_CONTEXT"
+              ? "Missing Moai context."
+              : result.error === "NOT_FOUND"
+                ? "Request not found."
+                : "Unable to vote.";
+      setError(message);
+      setRequest(getRequestById(requestId));
+      return;
+    }
+
+    setRequest(result.request);
+  };
 
   return (
     <div className="mt-10 space-y-6">
@@ -52,7 +101,7 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
               {request.title}
             </p>
             <p className="mt-1 text-sm text-neutral-700">
-              {formatType(request.type)}
+              {requestTypeLabel(request.type)}
             </p>
           </div>
           <span className="text-sm font-medium text-neutral-900">
@@ -74,10 +123,11 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
         ) : null}
 
         <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-neutral-600">
-          <span>Status: {request.status}</span>
+          <span>Status: {status}</span>
           <span>
             Votes: {request.votes.yes} yes / {request.votes.no} no
           </span>
+          {memberCount > 0 ? <span>Need: {needed}</span> : null}
           <span>
             Expires: {new Date(request.expiresAt).toLocaleDateString()}
           </span>
@@ -85,25 +135,40 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
       </div>
 
       <div className="rounded-xl border border-neutral-200 p-4">
-        <p className="text-sm text-neutral-700">
-          Voting UI (approve/deny) will be wired next.
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-neutral-700">
+            {myVote
+              ? `Your vote: ${myVote === "yes" ? "approve" : "deny"}`
+              : "Vote"}
+          </p>
+          {!voterId ? (
+            <Link
+              className="text-sm font-medium text-neutral-900 hover:underline"
+              href="/auth"
+            >
+              Login
+            </Link>
+          ) : null}
+        </div>
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <button
-            className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white opacity-50"
+            className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             type="button"
-            disabled
+            disabled={!canVote}
+            onClick={() => onVote("yes")}
           >
             Approve
           </button>
           <button
-            className="inline-flex items-center justify-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-900 opacity-50"
+            className="inline-flex items-center justify-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-900 disabled:opacity-50"
             type="button"
-            disabled
+            disabled={!canVote}
+            onClick={() => onVote("no")}
           >
             Deny
           </button>
         </div>
+        {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
       </div>
     </div>
   );
