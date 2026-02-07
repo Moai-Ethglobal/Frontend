@@ -18,6 +18,14 @@ function writeAll(value: ContributionPayment[]): void {
   writeJson(STORAGE_KEY, value);
 }
 
+export function listContributionPaymentsByMoaiId(
+  moaiId: string,
+): ContributionPayment[] {
+  return readAll()
+    .filter((p) => p.moaiId === moaiId)
+    .sort((a, b) => b.paidAt.localeCompare(a.paidAt));
+}
+
 export function getContributionPayment(input: {
   moaiId: string;
   month: string;

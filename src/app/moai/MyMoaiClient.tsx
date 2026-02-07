@@ -7,6 +7,7 @@ import type { MyMoai } from "@/lib/moai";
 import { readMyMoai } from "@/lib/moai";
 import { ActiveStatusCard } from "./ActiveStatusCard";
 import { ContributionCard } from "./ContributionCard";
+import { PoolCard } from "./PoolCard";
 
 export function MyMoaiClient() {
   const [moai, setMoai] = useState<MyMoai | null>(null);
@@ -85,6 +86,8 @@ export function MyMoaiClient() {
       </div>
 
       <ActiveStatusCard moaiId={moai.id} />
+
+      <PoolCard moaiId={moai.id} />
 
       <ContributionCard moai={moai} />
 
