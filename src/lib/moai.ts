@@ -32,11 +32,16 @@ export function createMyMoai(input: {
   name: string;
   inviteCode: string;
   monthlyContributionUSDC?: string;
+  creatorId?: string;
   creator: { displayName: string; email?: string };
 }): MyMoai {
   const now = new Date().toISOString();
   const id = globalThis.crypto?.randomUUID?.() ?? input.inviteCode;
-  const creatorId = globalThis.crypto?.randomUUID?.() ?? `${id}:creator`;
+  const creatorIdRaw = input.creatorId?.trim();
+  const creatorId =
+    creatorIdRaw && creatorIdRaw.length > 0
+      ? creatorIdRaw
+      : (globalThis.crypto?.randomUUID?.() ?? `${id}:creator`);
   const monthlyContributionUSDC = input.monthlyContributionUSDC?.trim();
 
   const moai: MyMoai = {
@@ -72,6 +77,7 @@ export type JoinMyMoaiError =
 
 export function joinMyMoaiByInviteCode(input: {
   inviteCode: string;
+  memberId?: string;
   member: { displayName: string; email?: string };
 }): { ok: true; moai: MyMoai } | { ok: false; error: JoinMyMoaiError } {
   const moai = readMyMoai();
@@ -79,12 +85,20 @@ export function joinMyMoaiByInviteCode(input: {
   if (moai.inviteCode !== input.inviteCode)
     return { ok: false, error: "CODE_MISMATCH" };
 
+  const memberIdRaw = input.memberId?.trim();
+  const memberId =
+    memberIdRaw && memberIdRaw.length > 0 ? memberIdRaw : undefined;
+
   const displayName = input.member.displayName.trim();
   const email = input.member.email?.trim();
   const normalizedEmail = email ? email.toLowerCase() : undefined;
 
   if (displayName.length === 0) return { ok: false, error: "INVALID_MEMBER" };
   if (moai.members.length >= MAX_MEMBERS) return { ok: false, error: "FULL" };
+
+  if (memberId && moai.members.some((m) => m.id === memberId)) {
+    return { ok: false, error: "ALREADY_JOINED" };
+  }
 
   if (
     normalizedEmail &&
@@ -96,7 +110,8 @@ export function joinMyMoaiByInviteCode(input: {
   }
 
   const now = new Date().toISOString();
-  const id = globalThis.crypto?.randomUUID?.() ?? `${moai.id}:${now}`;
+  const id =
+    memberId ?? globalThis.crypto?.randomUUID?.() ?? `${moai.id}:${now}`;
 
   const next: MyMoai = {
     ...moai,
