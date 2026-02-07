@@ -3,14 +3,29 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { readMyMoai } from "@/lib/moai";
+import { readSession } from "@/lib/session";
+import { parseUSDC } from "@/lib/usdc";
 import { LiFiBridgeWidget } from "./LiFiBridgeWidget";
 
 export function DepositClient() {
   const [ready, setReady] = useState(false);
   const [hasMoai, setHasMoai] = useState(false);
+  const [monthlyContribution, setMonthlyContribution] = useState<number | null>(
+    null,
+  );
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
 
   useEffect(() => {
-    setHasMoai(Boolean(readMyMoai()));
+    const moai = readMyMoai();
+    const session = readSession();
+
+    setHasMoai(Boolean(moai));
+    setMonthlyContribution(
+      moai?.monthlyContributionUSDC
+        ? parseUSDC(moai.monthlyContributionUSDC)
+        : null,
+    );
+    setWalletAddress(session?.method === "wallet" ? session.id : null);
     setReady(true);
   }, []);
 
@@ -48,7 +63,10 @@ export function DepositClient() {
           Use chain abstraction to deposit from any chain.
         </p>
         <div className="mt-4">
-          <LiFiBridgeWidget />
+          <LiFiBridgeWidget
+            defaultAmountUSDC={monthlyContribution ?? undefined}
+            defaultToAddress={walletAddress ?? undefined}
+          />
         </div>
       </div>
 
