@@ -8,6 +8,7 @@ import { readMyMoai } from "@/lib/moai";
 import { ActiveStatusCard } from "./ActiveStatusCard";
 import { ContributionCard } from "./ContributionCard";
 import { HistoryCard } from "./HistoryCard";
+import { OrderCard } from "./OrderCard";
 import { PoolCard } from "./PoolCard";
 
 export function MyMoaiClient() {
@@ -89,6 +90,8 @@ export function MyMoaiClient() {
       <ActiveStatusCard moaiId={moai.id} />
 
       <PoolCard moaiId={moai.id} />
+
+      <OrderCard moai={moai} />
 
       <ContributionCard moai={moai} />
 
