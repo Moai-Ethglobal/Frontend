@@ -109,6 +109,12 @@ export function RequestsClient() {
                 Votes: {r.votes.yes}/{memberCount} (need {needed})
               </span>
               <span>Expires: {new Date(r.expiresAt).toLocaleDateString()}</span>
+              <Link
+                className="text-neutral-900 hover:underline"
+                href={`/moai/requests/${r.id}`}
+              >
+                View
+              </Link>
             </div>
           </div>
         );

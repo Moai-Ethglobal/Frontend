@@ -70,6 +70,10 @@ export function listRequestsByMoaiId(moaiId: string): MoaiRequest[] {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+export function getRequestById(requestId: string): MoaiRequest | null {
+  return readAll().find((r) => r.id === requestId) ?? null;
+}
+
 export function createRequest(input: CreateRequestInput): MoaiRequest {
   const { createdAt, expiresAt } = nowIso();
 
