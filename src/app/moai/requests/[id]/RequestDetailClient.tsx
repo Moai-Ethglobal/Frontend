@@ -6,6 +6,7 @@ import { hasCheckedIn } from "@/lib/meetings";
 import { readMyMoai } from "@/lib/moai";
 import type { MoaiRequest } from "@/lib/requests";
 import {
+  executeEmergencyWithdrawalById,
   getRequestById,
   requestTypeLabel,
   voteRequestById,
@@ -22,6 +23,7 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
   const [voterId, setVoterId] = useState<string | null>(null);
   const [month, setMonth] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [execError, setExecError] = useState<string | null>(null);
 
   useEffect(() => {
     const moai = readMyMoai();
@@ -83,6 +85,7 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
 
   const onVote = (choice: "yes" | "no") => {
     setError(null);
+    setExecError(null);
     if (!voterId) {
       setError("Login to vote.");
       return;
@@ -125,6 +128,59 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
                 ? "Request not found."
                 : "Unable to vote.";
       setError(message);
+      setRequest(getRequestById(requestId));
+      return;
+    }
+
+    setRequest(result.request);
+  };
+
+  const onExecute = () => {
+    setExecError(null);
+    setError(null);
+    if (!voterId) {
+      setExecError("Login to execute.");
+      return;
+    }
+    if (!moaiId) {
+      setExecError("Missing Moai context.");
+      return;
+    }
+    if (!month) {
+      setExecError("Missing month context.");
+      return;
+    }
+    if (
+      !hasCheckedIn({
+        moaiId,
+        month,
+        voterId,
+      })
+    ) {
+      setExecError("Check in for this month to execute.");
+      return;
+    }
+
+    if (request.type !== "emergency_withdrawal") {
+      setExecError("Only emergency withdrawals can be executed.");
+      return;
+    }
+
+    const result = executeEmergencyWithdrawalById({
+      requestId,
+      executorId: voterId,
+    });
+
+    if (!result.ok) {
+      const message =
+        result.error === "NOT_PASSED"
+          ? "This request has not passed."
+          : result.error === "ALREADY_EXECUTED"
+            ? "This request was already executed."
+            : result.error === "NOT_FOUND"
+              ? "Request not found."
+              : "Unable to execute.";
+      setExecError(message);
       setRequest(getRequestById(requestId));
       return;
     }
@@ -222,6 +278,71 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
         </div>
         {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
       </div>
+
+      {request.type === "emergency_withdrawal" ? (
+        <div className="rounded-xl border border-neutral-200 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-neutral-700">Execution</p>
+            {!voterId ? (
+              <Link
+                className="text-sm font-medium text-neutral-900 hover:underline"
+                href="/auth"
+              >
+                Login
+              </Link>
+            ) : !activeThisMonth ? (
+              <Link
+                className="text-sm font-medium text-neutral-900 hover:underline"
+                href="/moai/meetings"
+              >
+                Check in
+              </Link>
+            ) : null}
+          </div>
+
+          {request.executedAt ? (
+            <div className="mt-3 text-sm text-neutral-700">
+              <p>
+                Executed at{" "}
+                <span className="font-medium text-neutral-900">
+                  {new Date(request.executedAt).toLocaleString(undefined)}
+                </span>
+                .
+              </p>
+              {request.executionReceiptId ? (
+                <p className="mt-1">
+                  Receipt:{" "}
+                  <span className="rounded bg-neutral-100 px-2 py-1 font-mono text-xs">
+                    {request.executionReceiptId}
+                  </span>
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <>
+              <p className="mt-3 text-sm text-neutral-700">
+                Execute payout after the request passes.
+              </p>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <button
+                  className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  type="button"
+                  disabled={
+                    !(status === "passed" && activeThisMonth && voterId)
+                  }
+                  onClick={onExecute}
+                >
+                  Execute payout (mock)
+                </button>
+              </div>
+            </>
+          )}
+
+          {execError ? (
+            <p className="mt-3 text-sm text-red-600">{execError}</p>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

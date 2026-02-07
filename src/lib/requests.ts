@@ -12,6 +12,9 @@ export type EmergencyWithdrawalRequest = {
   beneficiaryName: string;
   amountUSDC: string;
   status: RequestStatus;
+  executedAt?: string;
+  executedByVoterId?: string;
+  executionReceiptId?: string;
   createdAt: string;
   expiresAt: string;
   votes: { yes: number; no: number };
@@ -39,7 +42,15 @@ export type MoaiRequest =
 export type CreateRequestInput =
   | Omit<
       EmergencyWithdrawalRequest,
-      "id" | "status" | "createdAt" | "expiresAt" | "votes" | "votesByVoterId"
+      | "id"
+      | "status"
+      | "createdAt"
+      | "expiresAt"
+      | "votes"
+      | "votesByVoterId"
+      | "executedAt"
+      | "executedByVoterId"
+      | "executionReceiptId"
     >
   | Omit<
       ContributionChangeRequest,
@@ -185,6 +196,47 @@ export function voteRequestById(input: {
     status,
     votes,
     votesByVoterId,
+  };
+
+  all[idx] = next;
+  writeAll(all);
+  return { ok: true, request: next };
+}
+
+export type ExecuteEmergencyWithdrawalError =
+  | "NOT_FOUND"
+  | "NOT_EMERGENCY"
+  | "NOT_PASSED"
+  | "ALREADY_EXECUTED"
+  | "INVALID_EXECUTOR";
+
+export function executeEmergencyWithdrawalById(input: {
+  requestId: string;
+  executorId: string;
+}):
+  | { ok: true; request: EmergencyWithdrawalRequest }
+  | { ok: false; error: ExecuteEmergencyWithdrawalError } {
+  if (input.executorId.trim().length === 0)
+    return { ok: false, error: "INVALID_EXECUTOR" };
+
+  const all = readAll();
+  const idx = all.findIndex((r) => r.id === input.requestId);
+  if (idx < 0) return { ok: false, error: "NOT_FOUND" };
+
+  const current = all[idx];
+  if (current.type !== "emergency_withdrawal")
+    return { ok: false, error: "NOT_EMERGENCY" };
+  if (current.status !== "passed") return { ok: false, error: "NOT_PASSED" };
+  if (current.executedAt) return { ok: false, error: "ALREADY_EXECUTED" };
+
+  const receiptId =
+    globalThis.crypto?.randomUUID?.() ?? `exec:${Date.now()}:${current.id}`;
+
+  const next: EmergencyWithdrawalRequest = {
+    ...current,
+    executedAt: new Date().toISOString(),
+    executedByVoterId: input.executorId,
+    executionReceiptId: receiptId,
   };
 
   all[idx] = next;
