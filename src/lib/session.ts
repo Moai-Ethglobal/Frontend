@@ -9,6 +9,7 @@ export type Session = {
 import { readJson, writeJson } from "./storage";
 
 const STORAGE_KEY = "moai.session.v1";
+const IDENTITY_KEY = "moai.identity.v1";
 
 export function readSession(): Session | null {
   return readJson<Session>(STORAGE_KEY);
@@ -16,6 +17,16 @@ export function readSession(): Session | null {
 
 export function writeSession(value: Session | null): void {
   writeJson(STORAGE_KEY, value);
+}
+
+function getOrCreateIdentityId(): string {
+  const existing = readJson<string>(IDENTITY_KEY);
+  const trimmed = existing?.trim();
+  if (trimmed && trimmed.length > 0) return trimmed;
+
+  const id = globalThis.crypto?.randomUUID?.() ?? `id:${Date.now()}`;
+  writeJson(IDENTITY_KEY, id);
+  return id;
 }
 
 export function createSessionWithId(
@@ -33,8 +44,12 @@ export function createSessionWithId(
 }
 
 export function createSession(method: SessionMethod): Session {
-  return createSessionWithId(
-    method,
-    globalThis.crypto?.randomUUID?.() ?? `${method}:${Date.now()}`,
-  );
+  if (method === "wallet") {
+    return createSessionWithId(
+      method,
+      globalThis.crypto?.randomUUID?.() ?? `${method}:${Date.now()}`,
+    );
+  }
+
+  return createSessionWithId(method, getOrCreateIdentityId());
 }
