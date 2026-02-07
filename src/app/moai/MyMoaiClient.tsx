@@ -99,6 +99,21 @@ export function MyMoaiClient() {
 
       <div className="mt-10 rounded-xl border border-neutral-200 p-4">
         <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold">Meetings</h2>
+          <Link
+            className="text-neutral-900 hover:underline"
+            href="/moai/meetings"
+          >
+            Open
+          </Link>
+        </div>
+        <p className="mt-2 text-sm text-neutral-700">
+          Monthly check-in keeps membership active.
+        </p>
+      </div>
+
+      <div className="mt-10 rounded-xl border border-neutral-200 p-4">
+        <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-semibold">Requests</h2>
           <div className="flex items-center gap-3 text-sm">
             <Link
