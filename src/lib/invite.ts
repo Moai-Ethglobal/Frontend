@@ -1,5 +1,9 @@
 const alphabet = "23456789abcdefghjkmnpqrstuvwxyz";
 
+export function invitePath(code: string): string {
+  return `/invite/${code}`;
+}
+
 export function generateInviteCode(length = 10): string {
   const bytes = new Uint8Array(length);
 

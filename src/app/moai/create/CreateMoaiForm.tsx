@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { generateInviteCode } from "@/lib/invite";
+import { generateInviteCode, invitePath } from "@/lib/invite";
+import { createMyMoai } from "@/lib/moai";
 
 type FieldProps = {
   id: string;
@@ -50,18 +51,26 @@ export function CreateMoaiForm() {
     "idle",
   );
 
-  const invitePath = inviteCode ? `/invite/${inviteCode}` : null;
+  const createdInvitePath = inviteCode ? invitePath(inviteCode) : null;
 
   const inviteUrl = useMemo(() => {
-    if (!invitePath) return null;
-    if (typeof window === "undefined") return invitePath;
-    return `${window.location.origin}${invitePath}`;
-  }, [invitePath]);
+    if (!createdInvitePath) return null;
+    if (typeof window === "undefined") return createdInvitePath;
+    return `${window.location.origin}${createdInvitePath}`;
+  }, [createdInvitePath]);
 
   const canCreate = moaiName.trim().length > 0 && displayName.trim().length > 0;
 
   const onCreate = () => {
     const code = generateInviteCode();
+    createMyMoai({
+      name: moaiName.trim(),
+      inviteCode: code,
+      creator: {
+        displayName: displayName.trim(),
+        email: email.trim().length > 0 ? email.trim() : undefined,
+      },
+    });
     setInviteCode(code);
     setCopyState("idle");
   };
@@ -127,7 +136,7 @@ export function CreateMoaiForm() {
             <div className="flex items-center gap-3 text-sm">
               <Link
                 className="text-neutral-900 hover:underline"
-                href={invitePath ?? "/"}
+                href={createdInvitePath ?? "/"}
               >
                 Open
               </Link>
@@ -151,6 +160,20 @@ export function CreateMoaiForm() {
               value={inviteUrl}
             />
           </div>
+        </div>
+      ) : null}
+
+      {inviteCode ? (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-neutral-600">
+            Saved to this browser. Share the invite link to add members.
+          </p>
+          <Link
+            className="text-sm font-medium text-neutral-900 hover:underline"
+            href="/moai"
+          >
+            Go to My Moai
+          </Link>
         </div>
       ) : null}
     </div>
