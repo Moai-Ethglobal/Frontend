@@ -15,6 +15,7 @@ export type MyMoai = {
 };
 
 const STORAGE_KEY = "moai.myMoai.v1";
+const MAX_MEMBERS = 10;
 
 function safeParse<T>(value: string): T | null {
   try {
@@ -75,4 +76,57 @@ export function createMyMoai(input: {
 
   writeMyMoai(moai);
   return moai;
+}
+
+export type JoinMyMoaiError =
+  | "NO_MOAI"
+  | "CODE_MISMATCH"
+  | "INVALID_MEMBER"
+  | "FULL"
+  | "ALREADY_JOINED";
+
+export function joinMyMoaiByInviteCode(input: {
+  inviteCode: string;
+  member: { displayName: string; email?: string };
+}): { ok: true; moai: MyMoai } | { ok: false; error: JoinMyMoaiError } {
+  const moai = readMyMoai();
+  if (!moai) return { ok: false, error: "NO_MOAI" };
+  if (moai.inviteCode !== input.inviteCode)
+    return { ok: false, error: "CODE_MISMATCH" };
+
+  const displayName = input.member.displayName.trim();
+  const email = input.member.email?.trim();
+  const normalizedEmail = email ? email.toLowerCase() : undefined;
+
+  if (displayName.length === 0) return { ok: false, error: "INVALID_MEMBER" };
+  if (moai.members.length >= MAX_MEMBERS) return { ok: false, error: "FULL" };
+
+  if (
+    normalizedEmail &&
+    moai.members.some(
+      (m) => (m.email ? m.email.toLowerCase() : undefined) === normalizedEmail,
+    )
+  ) {
+    return { ok: false, error: "ALREADY_JOINED" };
+  }
+
+  const now = new Date().toISOString();
+  const id = globalThis.crypto?.randomUUID?.() ?? `${moai.id}:${now}`;
+
+  const next: MyMoai = {
+    ...moai,
+    members: [
+      ...moai.members,
+      {
+        id,
+        displayName,
+        email: normalizedEmail,
+        role: "member",
+        joinedAt: now,
+      },
+    ],
+  };
+
+  writeMyMoai(next);
+  return { ok: true, moai: next };
 }
