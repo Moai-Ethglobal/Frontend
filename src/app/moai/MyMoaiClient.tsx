@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { invitePath } from "@/lib/invite";
 import type { MyMoai } from "@/lib/moai";
 import { readMyMoai } from "@/lib/moai";
+import { ActiveStatusCard } from "./ActiveStatusCard";
 import { ContributionCard } from "./ContributionCard";
 
 export function MyMoaiClient() {
@@ -82,6 +83,8 @@ export function MyMoaiClient() {
           </div>
         ) : null}
       </div>
+
+      <ActiveStatusCard moaiId={moai.id} />
 
       <ContributionCard moai={moai} />
 
