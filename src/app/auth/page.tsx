@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PublicPage } from "@/components/PublicPage";
+import { AuthActions } from "./AuthActions";
 
 export default function AuthPage() {
   return (
@@ -12,29 +13,7 @@ export default function AuthPage() {
         fallback.
       </p>
 
-      <div className="mt-10 grid gap-3 sm:max-w-sm">
-        <button
-          className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white opacity-50"
-          type="button"
-          disabled
-        >
-          Continue with passkey
-        </button>
-        <button
-          className="inline-flex items-center justify-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-900 opacity-50"
-          type="button"
-          disabled
-        >
-          Continue with email
-        </button>
-        <button
-          className="inline-flex items-center justify-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-900 opacity-50"
-          type="button"
-          disabled
-        >
-          Connect wallet
-        </button>
-      </div>
+      <AuthActions />
 
       <div className="mt-12 border-t border-neutral-200 pt-6">
         <Link

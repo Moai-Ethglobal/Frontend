@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HeaderAuth } from "./HeaderAuth";
 
 type NavItem = {
   href: string;
@@ -11,7 +12,6 @@ export function SiteHeader({
   nav = [
     { href: "/moai", label: "My Moai" },
     { href: "/learn", label: "Learn" },
-    { href: "/auth", label: "Login" },
   ],
 }: {
   brandHref?: string;
@@ -33,6 +33,7 @@ export function SiteHeader({
             {item.label}
           </Link>
         ))}
+        <HeaderAuth />
       </nav>
     </header>
   );
