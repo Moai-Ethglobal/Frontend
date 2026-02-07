@@ -95,6 +95,21 @@ export function MyMoaiClient() {
 
       <PoolCard moaiId={moai.id} />
 
+      <div className="mt-10 rounded-xl border border-neutral-200 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold">Deposit</h2>
+          <Link
+            className="text-neutral-900 hover:underline"
+            href="/moai/deposit"
+          >
+            Open
+          </Link>
+        </div>
+        <p className="mt-2 text-sm text-neutral-700">
+          Bridge USDC in via chain abstraction (LI.FI).
+        </p>
+      </div>
+
       <OrderCard moai={moai} />
 
       <ContributionCard moai={moai} />
