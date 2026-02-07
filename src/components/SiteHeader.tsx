@@ -9,6 +9,7 @@ export function SiteHeader({
   brandHref = "/",
   brandLabel = "Moai",
   nav = [
+    { href: "/moai", label: "My Moai" },
     { href: "/learn", label: "Learn" },
     { href: "/auth", label: "Login" },
   ],
