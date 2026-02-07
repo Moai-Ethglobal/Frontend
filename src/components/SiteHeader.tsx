@@ -8,7 +8,10 @@ type NavItem = {
 export function SiteHeader({
   brandHref = "/",
   brandLabel = "Moai",
-  nav = [{ href: "/learn", label: "Learn" }],
+  nav = [
+    { href: "/learn", label: "Learn" },
+    { href: "/auth", label: "Login" },
+  ],
 }: {
   brandHref?: string;
   brandLabel?: string;
