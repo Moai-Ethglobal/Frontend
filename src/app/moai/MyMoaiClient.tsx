@@ -10,6 +10,7 @@ import { ContributionCard } from "./ContributionCard";
 import { HistoryCard } from "./HistoryCard";
 import { OrderCard } from "./OrderCard";
 import { PoolCard } from "./PoolCard";
+import { WithdrawCard } from "./WithdrawCard";
 
 export function MyMoaiClient() {
   const [moai, setMoai] = useState<MyMoai | null>(null);
@@ -94,6 +95,8 @@ export function MyMoaiClient() {
       <OrderCard moai={moai} />
 
       <ContributionCard moai={moai} />
+
+      <WithdrawCard moai={moai} />
 
       <HistoryCard moaiId={moai.id} />
 

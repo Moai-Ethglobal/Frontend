@@ -6,26 +6,20 @@ import { listContributionPaymentsByMoaiId } from "@/lib/contributions";
 import type { MoaiRequest } from "@/lib/requests";
 import { listRequestsByMoaiId } from "@/lib/requests";
 import { STORAGE_CHANGE_EVENT, type StorageChangeDetail } from "@/lib/storage";
-
-function parseUSDC(value: string): number {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 0;
-  if (n < 0) return 0;
-  return n;
-}
-
-function sumUSDC(values: string[]): number {
-  return values.reduce((sum, v) => sum + parseUSDC(v), 0);
-}
+import { sumUSDC } from "@/lib/usdc";
+import type { Withdrawal } from "@/lib/withdrawals";
+import { listWithdrawalsByMoaiId } from "@/lib/withdrawals";
 
 export function PoolCard({ moaiId }: { moaiId: string }) {
   const [ready, setReady] = useState(false);
   const [payments, setPayments] = useState<ContributionPayment[]>([]);
   const [requests, setRequests] = useState<MoaiRequest[]>([]);
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
 
   const refresh = useCallback(() => {
     setPayments(listContributionPaymentsByMoaiId(moaiId));
     setRequests(listRequestsByMoaiId(moaiId));
+    setWithdrawals(listWithdrawalsByMoaiId(moaiId));
     setReady(true);
   }, [moaiId]);
 
@@ -61,7 +55,11 @@ export function PoolCard({ moaiId }: { moaiId: string }) {
     );
   }, [executed]);
 
-  const balance = contributed - paidOut;
+  const withdrawn = useMemo(() => {
+    return sumUSDC(withdrawals.map((w) => w.amountUSDC));
+  }, [withdrawals]);
+
+  const balance = contributed - paidOut - withdrawn;
 
   const fmt = useMemo(() => {
     return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
@@ -91,6 +89,9 @@ export function PoolCard({ moaiId }: { moaiId: string }) {
         </span>
         <span>
           Paid out: {fmt.format(paidOut)} USDC ({executed.length})
+        </span>
+        <span>
+          Withdrawn: {fmt.format(withdrawn)} USDC ({withdrawals.length})
         </span>
       </div>
 

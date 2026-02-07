@@ -6,6 +6,8 @@ import { listContributionPaymentsByMoaiId } from "@/lib/contributions";
 import type { EmergencyWithdrawalRequest, MoaiRequest } from "@/lib/requests";
 import { listRequestsByMoaiId } from "@/lib/requests";
 import { STORAGE_CHANGE_EVENT, type StorageChangeDetail } from "@/lib/storage";
+import type { Withdrawal } from "@/lib/withdrawals";
+import { listWithdrawalsByMoaiId } from "@/lib/withdrawals";
 
 type HistoryItem =
   | {
@@ -16,6 +18,12 @@ type HistoryItem =
     }
   | {
       type: "emergency_executed";
+      ts: string;
+      title: string;
+      detail: string;
+    }
+  | {
+      type: "withdrawn";
       ts: string;
       title: string;
       detail: string;
@@ -50,6 +58,15 @@ function toExecutedItem(r: EmergencyWithdrawalRequest): HistoryItem {
   };
 }
 
+function toWithdrawalItem(w: Withdrawal): HistoryItem {
+  return {
+    type: "withdrawn",
+    ts: w.withdrawnAt,
+    title: "Withdrawal",
+    detail: `${w.month} · ${w.amountUSDC} USDC`,
+  };
+}
+
 function executedEmergencyRequests(
   requests: MoaiRequest[],
 ): EmergencyWithdrawalRequest[] {
@@ -69,10 +86,12 @@ export function HistoryCard({ moaiId }: { moaiId: string }) {
   const [ready, setReady] = useState(false);
   const [payments, setPayments] = useState<ContributionPayment[]>([]);
   const [requests, setRequests] = useState<MoaiRequest[]>([]);
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
 
   const refresh = useCallback(() => {
     setPayments(listContributionPaymentsByMoaiId(moaiId));
     setRequests(listRequestsByMoaiId(moaiId));
+    setWithdrawals(listWithdrawalsByMoaiId(moaiId));
     setReady(true);
   }, [moaiId]);
 
@@ -84,7 +103,8 @@ export function HistoryCard({ moaiId }: { moaiId: string }) {
       if (!detail?.key) return;
       if (
         detail.key !== "moai.contributions.v1" &&
-        detail.key !== "moai.requests.v1"
+        detail.key !== "moai.requests.v1" &&
+        detail.key !== "moai.withdrawals.v1"
       )
         return;
       refresh();
@@ -99,9 +119,10 @@ export function HistoryCard({ moaiId }: { moaiId: string }) {
     const next: HistoryItem[] = [
       ...payments.map(toContributionItem),
       ...executed.map(toExecutedItem),
+      ...withdrawals.map(toWithdrawalItem),
     ];
     return next.sort((a, b) => isoTime(b.ts) - isoTime(a.ts)).slice(0, 6);
-  }, [payments, requests]);
+  }, [payments, requests, withdrawals]);
 
   if (!ready) {
     return (

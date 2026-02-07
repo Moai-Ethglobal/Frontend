@@ -1,26 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { MoaiMember, MyMoai } from "@/lib/moai";
+import type { MyMoai } from "@/lib/moai";
+import { rotationNextMember, rotationOrder } from "@/lib/rotation";
 import { monthKey } from "@/lib/time";
-
-function monthIndex(month: string): number | null {
-  const [yRaw, mRaw] = month.split("-");
-  const y = Number(yRaw);
-  const m = Number(mRaw);
-  if (!Number.isFinite(y) || !Number.isFinite(m)) return null;
-  if (m < 1 || m > 12) return null;
-  return y * 12 + (m - 1);
-}
-
-function monthFromIso(iso: string): string | null {
-  const month = iso.slice(0, 7);
-  return /^\d{4}-\d{2}$/.test(month) ? month : null;
-}
-
-function sortMembersByJoinTime(members: MoaiMember[]): MoaiMember[] {
-  return [...members].sort((a, b) => a.joinedAt.localeCompare(b.joinedAt));
-}
 
 export function OrderCard({ moai }: { moai: MyMoai }) {
   const [month, setMonth] = useState<string | null>(null);
@@ -29,27 +12,12 @@ export function OrderCard({ moai }: { moai: MyMoai }) {
     setMonth(monthKey(new Date()));
   }, []);
 
-  const startMonth = useMemo(
-    () => monthFromIso(moai.createdAt),
-    [moai.createdAt],
-  );
-  const orderedMembers = useMemo(
-    () => sortMembersByJoinTime(moai.members),
-    [moai.members],
-  );
+  const orderedMembers = useMemo(() => rotationOrder(moai), [moai]);
 
   const next = useMemo(() => {
-    if (!month || !startMonth) return null;
-    if (orderedMembers.length === 0) return null;
-
-    const currentIdx = monthIndex(month);
-    const startIdx = monthIndex(startMonth);
-    if (currentIdx === null || startIdx === null) return null;
-
-    const delta = Math.max(0, currentIdx - startIdx);
-    const idx = delta % orderedMembers.length;
-    return orderedMembers[idx] ?? null;
-  }, [month, orderedMembers, startMonth]);
+    if (!month) return null;
+    return rotationNextMember(moai, month);
+  }, [moai, month]);
 
   return (
     <div className="mt-10 rounded-xl border border-neutral-200 p-4">
