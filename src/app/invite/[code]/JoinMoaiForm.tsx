@@ -24,7 +24,7 @@ function JoinOnchainMoaiForm({ moaiAddress }: { moaiAddress: string }) {
   const [status, setStatus] = useState<
     | { type: "idle" }
     | { type: "joining" }
-    | { type: "joined"; hash: string }
+    | { type: "joined"; hash: string | null }
     | { type: "error"; message: string }
   >({ type: "idle" });
 
@@ -35,6 +35,10 @@ function JoinOnchainMoaiForm({ moaiAddress }: { moaiAddress: string }) {
     writeOnchainMoaiConfig({ moaiAddress });
     const result = await joinOnchain({ sessionId: session.id });
     if (!result.ok) {
+      if (result.error === "Already a member onchain.") {
+        setStatus({ type: "joined", hash: null });
+        return;
+      }
       setStatus({ type: "error", message: result.error });
       return;
     }
@@ -45,12 +49,18 @@ function JoinOnchainMoaiForm({ moaiAddress }: { moaiAddress: string }) {
     return (
       <div className="mt-10 rounded-xl border border-neutral-200 p-4">
         <h2 className="text-sm font-semibold">Joined onchain</h2>
-        <p className="mt-2 text-sm text-neutral-700">
-          Transaction:{" "}
-          <span className="rounded bg-neutral-100 px-2 py-1 font-mono text-xs">
-            {status.hash.slice(0, 12)}…{status.hash.slice(-8)}
-          </span>
-        </p>
+        {status.hash ? (
+          <p className="mt-2 text-sm text-neutral-700">
+            Transaction:{" "}
+            <span className="rounded bg-neutral-100 px-2 py-1 font-mono text-xs">
+              {status.hash.slice(0, 12)}…{status.hash.slice(-8)}
+            </span>
+          </p>
+        ) : (
+          <p className="mt-2 text-sm text-neutral-700">
+            You&apos;re already a member.
+          </p>
+        )}
         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
           <Link
             className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"

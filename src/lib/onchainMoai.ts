@@ -3,6 +3,7 @@ import {
   createPublicClient,
   createWalletClient,
   custom,
+  decodeErrorResult,
   formatUnits,
   getContract,
   parseEventLogs,
@@ -28,6 +29,13 @@ const ERC20_ABI = [
       { name: "owner", type: "address" },
       { name: "spender", type: "address" },
     ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "balanceOf",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
     outputs: [{ name: "", type: "uint256" }],
   },
   {
@@ -100,6 +108,122 @@ function asTxHash(value: unknown): `0x${string}` | null {
   if (!v.startsWith("0x")) return null;
   if (v.length < 10) return null;
   return v as `0x${string}`;
+}
+
+function asHexData(value: unknown): `0x${string}` | null {
+  if (typeof value !== "string") return null;
+  const v = value.trim();
+  if (!v.startsWith("0x")) return null;
+  if (v.length < 10) return null;
+  return v as `0x${string}`;
+}
+
+function findErrorData(err: unknown, depth = 0): `0x${string}` | null {
+  if (depth > 5) return null;
+  if (!err || typeof err !== "object") return null;
+  const e = err as Record<string, unknown>;
+  const direct = asHexData(e.data);
+  if (direct) return direct;
+  return findErrorData(e.cause, depth + 1);
+}
+
+function findErrorCode(err: unknown, depth = 0): number | null {
+  if (depth > 5) return null;
+  if (!err || typeof err !== "object") return null;
+  const e = err as Record<string, unknown>;
+  if (typeof e.code === "number" && Number.isFinite(e.code)) return e.code;
+  return findErrorCode(e.cause, depth + 1);
+}
+
+function findErrorString(
+  err: unknown,
+  key: "shortMessage" | "message",
+  depth = 0,
+): string | null {
+  if (depth > 5) return null;
+  if (!err || typeof err !== "object") return null;
+  const e = err as Record<string, unknown>;
+  const raw = e[key];
+  if (typeof raw === "string") {
+    const v = raw.trim();
+    if (v.length) return v;
+  }
+  return findErrorString(e.cause, key, depth + 1);
+}
+
+function decodeMoaiErrorName(err: unknown): string | null {
+  const data = findErrorData(err);
+  if (!data) return null;
+  try {
+    const decoded = decodeErrorResult({ abi: MOAI_ABI, data });
+    return typeof decoded.errorName === "string" ? decoded.errorName : null;
+  } catch {
+    return null;
+  }
+}
+
+function friendlyMoaiError(errorName: string): string | null {
+  if (errorName === "AlreadyMember") return "Already a member onchain.";
+  if (errorName === "MaxMembersReached") return "Moai is full.";
+  if (errorName === "NotMember") return "Not a member onchain.";
+  if (errorName === "ContributionAlreadyMade")
+    return "Already paid this month onchain.";
+  if (errorName === "InvalidAmount") return "Invalid amount.";
+  if (errorName === "EmergencyAmountTooHigh")
+    return "Emergency amount is too high.";
+  if (errorName === "NoApprovedWithdrawal")
+    return "Nothing withdrawable onchain.";
+  if (errorName === "TooEarlyToDistribute") return "Too early to distribute.";
+  if (errorName === "AlreadyVoted") return "Already voted.";
+  if (errorName === "AlreadyExecuted") return "Already executed.";
+  if (errorName === "AlreadyDissolved") return "Already dissolved.";
+  if (errorName === "BelowRemovalThreshold")
+    return "Member is not eligible for removal yet.";
+  if (errorName === "InsufficientContributors")
+    return "Not enough contributors to distribute.";
+  return null;
+}
+
+function friendlyTxError(err: unknown): string {
+  const code = findErrorCode(err);
+  if (code === 4001) return "Request rejected in wallet.";
+  if (code === -32002)
+    return "A wallet request is already pending. Open your wallet to continue.";
+
+  const moaiErrorName = decodeMoaiErrorName(err);
+  if (moaiErrorName) {
+    const msg = friendlyMoaiError(moaiErrorName);
+    return msg ?? `Contract reverted: ${moaiErrorName}.`;
+  }
+
+  const shortMessage = findErrorString(err, "shortMessage");
+  if (shortMessage) {
+    if (/insufficient funds/i.test(shortMessage))
+      return "Not enough gas for transaction.";
+    return shortMessage;
+  }
+
+  const message = findErrorString(err, "message");
+  if (message) {
+    if (/insufficient funds/i.test(message))
+      return "Not enough gas for transaction.";
+    return message;
+  }
+
+  return "Transaction failed.";
+}
+
+async function ensureWalletChainId(
+  publicClient: ReturnType<typeof createPublicClient>,
+  expectedChainId?: number,
+): Promise<string | null> {
+  if (!expectedChainId) return null;
+  const actual = await publicClient.getChainId().catch(() => null);
+  if (!actual) return null;
+  if (actual !== expectedChainId) {
+    return `Wrong network. Switch wallet to chainId ${expectedChainId}.`;
+  }
+  return null;
 }
 
 function parseUSDCToUnits(value: string): bigint | null {
@@ -431,6 +555,21 @@ export async function joinOnchain(input: {
     const publicClient = createPublicClient({ transport: custom(provider) });
     const walletClient = createWalletClient({ transport: custom(provider) });
     try {
+      const chainErr = await ensureWalletChainId(publicClient, cfg.chainId);
+      if (chainErr) return { ok: false, error: chainErr };
+
+      const mi = await publicClient
+        .readContract({
+          address: moaiAddress,
+          abi: MOAI_ABI,
+          functionName: "memberInfo",
+          args: [resolved.account],
+        })
+        .then(parseMemberInfo)
+        .catch(() => null);
+      if (mi?.isActive)
+        return { ok: false, error: "Already a member onchain." };
+
       const { request } = await publicClient.simulateContract({
         address: moaiAddress,
         abi: MOAI_ABI,
@@ -440,14 +579,25 @@ export async function joinOnchain(input: {
       });
       const hash = await walletClient.writeContract(request);
       return { ok: true, hash };
-    } catch {
-      return { ok: false, error: "Transaction failed." };
+    } catch (err) {
+      return { ok: false, error: friendlyTxError(err) };
     }
   }
 
   const aa = await getAaClients({ identityId: resolved.identityId });
   if (!aa) return { ok: false, error: "AA config not set." };
   try {
+    const mi = await aa.publicClient
+      .readContract({
+        address: moaiAddress,
+        abi: MOAI_ABI,
+        functionName: "memberInfo",
+        args: [aa.smartAccountAddress],
+      })
+      .then(parseMemberInfo)
+      .catch(() => null);
+    if (mi?.isActive) return { ok: false, error: "Already a member onchain." };
+
     const moai = getContract({
       address: moaiAddress,
       abi: MOAI_ABI,
@@ -455,8 +605,8 @@ export async function joinOnchain(input: {
     });
     const hash = await moai.write.joinMoai();
     return { ok: true, hash };
-  } catch {
-    return { ok: false, error: "Transaction failed." };
+  } catch (err) {
+    return { ok: false, error: friendlyTxError(err) };
   }
 }
 
@@ -479,6 +629,9 @@ export async function contributeOnchain(input: {
     const walletClient = createWalletClient({
       transport: custom(provider),
     }).extend(eip5792Actions());
+
+    const chainErr = await ensureWalletChainId(publicClient, cfg.chainId);
+    if (chainErr) return { ok: false, error: chainErr };
 
     const token = await publicClient
       .readContract({
@@ -504,6 +657,22 @@ export async function contributeOnchain(input: {
       .catch(() => 0n);
     if (amount <= 0n)
       return { ok: false, error: "Invalid contribution amount." };
+
+    const balance = await publicClient
+      .readContract({
+        address: usdcAddress,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [resolved.account],
+      })
+      .then(asBigInt)
+      .catch(() => 0n);
+    if (balance < amount) {
+      return {
+        ok: false,
+        error: `Insufficient USDC. Need ${formatUSDC(amount)} USDC, have ${formatUSDC(balance)} USDC.`,
+      };
+    }
 
     const allowance = await publicClient
       .readContract({
@@ -554,8 +723,41 @@ export async function contributeOnchain(input: {
         .map(asTxHash)
         .filter((x): x is `0x${string}` => Boolean(x));
       return { ok: true, hashes };
-    } catch {
-      return { ok: false, error: "Transaction failed." };
+    } catch (err) {
+      const code = findErrorCode(err);
+      if (code === 4001 || code === -32002) {
+        return { ok: false, error: friendlyTxError(err) };
+      }
+
+      // Fallback for wallets without wallet_sendCalls support.
+      const hashes: `0x${string}`[] = [];
+      try {
+        if (allowance < amount) {
+          const { request } = await publicClient.simulateContract({
+            address: usdcAddress,
+            abi: ERC20_ABI,
+            functionName: "approve",
+            args: [moaiAddress, amount],
+            account: resolved.account,
+          });
+          const hash = await walletClient.writeContract(request);
+          hashes.push(hash);
+          await publicClient.waitForTransactionReceipt({ hash });
+        }
+
+        const { request } = await publicClient.simulateContract({
+          address: moaiAddress,
+          abi: MOAI_ABI,
+          functionName: "contribute",
+          args: [],
+          account: resolved.account,
+        });
+        const hash = await walletClient.writeContract(request);
+        hashes.push(hash);
+        return { ok: true, hashes };
+      } catch (err) {
+        return { ok: false, error: friendlyTxError(err) };
+      }
     }
   }
 
@@ -585,6 +787,22 @@ export async function contributeOnchain(input: {
     .then(asBigInt)
     .catch(() => 0n);
   if (amount <= 0n) return { ok: false, error: "Invalid contribution amount." };
+
+  const balance = await aa.publicClient
+    .readContract({
+      address: usdcAddress,
+      abi: ERC20_ABI,
+      functionName: "balanceOf",
+      args: [aa.smartAccountAddress],
+    })
+    .then(asBigInt)
+    .catch(() => 0n);
+  if (balance < amount) {
+    return {
+      ok: false,
+      error: `Insufficient USDC. Need ${formatUSDC(amount)} USDC, have ${formatUSDC(balance)} USDC.`,
+    };
+  }
 
   const allowance = await aa.publicClient
     .readContract({
@@ -618,8 +836,8 @@ export async function contributeOnchain(input: {
     }
     hashes.push(await moai.write.contribute());
     return { ok: true, hashes };
-  } catch {
-    return { ok: false, error: "Transaction failed." };
+  } catch (err) {
+    return { ok: false, error: friendlyTxError(err) };
   }
 }
 

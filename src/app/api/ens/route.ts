@@ -5,7 +5,7 @@ import { namehash, normalize, parseAvatarRecord } from "viem/ens";
 import { isEvmAddress } from "@/lib/evm";
 
 const DEFAULT_MAINNET_RPCS = [
-  "https://ethereum.publicnode.com",
+  "https://ethereum-rpc.publicnode.com",
   "https://cloudflare-eth.com",
 ] as const;
 
