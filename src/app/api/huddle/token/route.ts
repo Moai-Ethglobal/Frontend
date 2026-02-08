@@ -1,7 +1,7 @@
 import { AccessToken, Role } from "@huddle01/server-sdk/auth";
 import { NextResponse } from "next/server";
 import type { Address } from "viem";
-import { createPublicClient, http, verifyMessage } from "viem";
+import { createPublicClient, http } from "viem";
 import { MOAI_ABI } from "@/contracts/abi";
 import { isEvmAddress } from "@/lib/evm";
 import { getNonce, markNonceUsed } from "@/server/store";
@@ -154,19 +154,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "nonce room mismatch" }, { status: 400 });
   }
 
-  const okSig = await verifyMessage({
-    address: address as Address,
-    message: record.message,
-    signature: signature as `0x${string}`,
-  }).catch(() => false);
+  const publicClient = createPublicClient({
+    transport: http(rpcUrl),
+  });
+
+  const okSig = await publicClient
+    .verifyMessage({
+      address: address as Address,
+      message: record.message,
+      signature: signature as `0x${string}`,
+    })
+    .catch(() => false);
 
   if (!okSig) {
     return NextResponse.json({ error: "signature invalid" }, { status: 401 });
   }
-
-  const publicClient = createPublicClient({
-    transport: http(rpcUrl),
-  });
 
   const isMember = await publicClient
     .readContract({

@@ -1,3 +1,4 @@
+import { getKernelAccountAddress, signAaMessage } from "./aa";
 import { isEvmAddress } from "./evm";
 import { signMessage } from "./wallet";
 
@@ -49,6 +50,7 @@ async function tryGatedToken(input: {
   roomId: string;
   address: string;
   role?: string;
+  sign: (message: string) => Promise<string | null>;
 }): Promise<
   Ok<{ token: string }> | Err | { ok: false; error: "GATING_DISABLED" }
 > {
@@ -88,7 +90,7 @@ async function tryGatedToken(input: {
     }
   }
 
-  const signature = await signMessage({ account: input.address, message });
+  const signature = await input.sign(message);
   if (!signature) return { ok: false, error: "Signature rejected." };
 
   const tokenRes = await fetch("/api/huddle/token", {
@@ -128,15 +130,30 @@ export async function getHuddleToken(input: {
   if (!roomId.length) return { ok: false, error: "Missing roomId." };
 
   try {
-    const address = input.address?.trim() ?? "";
-    if (isEvmAddress(address)) {
-      const gated = await tryGatedToken({
-        roomId,
-        address,
-        role: input.role,
-      });
-      if (gated.ok) return gated;
-      if (gated.error !== "GATING_DISABLED") return gated;
+    const identity = input.address?.trim() ?? "";
+    if (identity.length) {
+      if (isEvmAddress(identity)) {
+        const gated = await tryGatedToken({
+          roomId,
+          address: identity,
+          role: input.role,
+          sign: (message) => signMessage({ account: identity, message }),
+        });
+        if (gated.ok) return gated;
+        if (gated.error !== "GATING_DISABLED") return gated;
+      } else {
+        const aa = await getKernelAccountAddress({ identityId: identity });
+        if (aa && isEvmAddress(aa)) {
+          const gated = await tryGatedToken({
+            roomId,
+            address: aa,
+            role: input.role,
+            sign: (message) => signAaMessage({ identityId: identity, message }),
+          });
+          if (gated.ok) return gated;
+          if (gated.error !== "GATING_DISABLED") return gated;
+        }
+      }
     }
 
     const res = await fetch(

@@ -279,6 +279,13 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
                           {p.sha256.slice(0, 16)}…{p.sha256.slice(-8)}
                         </span>
                       </div>
+                      {p.uri ? (
+                        <div className="mt-1">
+                          <span className="rounded bg-neutral-100 px-2 py-1 font-mono text-xs text-neutral-700">
+                            {p.uri}
+                          </span>
+                        </div>
+                      ) : null}
                     </li>
                   ))}
                 </ul>

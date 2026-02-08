@@ -206,7 +206,7 @@ export function DemiseClient() {
       <div className="rounded-xl border border-neutral-200 p-4">
         <h2 className="text-sm font-semibold">Submit a report</h2>
         <p className="mt-2 text-sm text-neutral-700">
-          Stored locally for now. Requires 2 approvals.
+          Request is stored locally. Proofs are uploaded. Requires 2 approvals.
         </p>
       </div>
 

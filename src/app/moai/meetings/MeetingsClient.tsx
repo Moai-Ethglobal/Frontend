@@ -13,7 +13,7 @@ import {
 } from "@/lib/meetings";
 import type { MyMoai } from "@/lib/moai";
 import { isActiveMemberId, readMyMoai } from "@/lib/moai";
-import { readSession, type SessionMethod } from "@/lib/session";
+import { readSession } from "@/lib/session";
 import { monthKey } from "@/lib/time";
 
 const HuddleJoinPanel = dynamic(() => import("./HuddleJoinPanel"), {
@@ -26,9 +26,6 @@ export function MeetingsClient() {
   const [moaiId, setMoaiId] = useState<string | null>(null);
   const [moaiName, setMoaiName] = useState<string | null>(null);
   const [voterId, setVoterId] = useState<string | null>(null);
-  const [sessionMethod, setSessionMethod] = useState<SessionMethod | null>(
-    null,
-  );
   const [month, setMonth] = useState<string | null>(null);
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +42,6 @@ export function MeetingsClient() {
     setMoaiId(currentMoai?.id ?? null);
     setMoaiName(currentMoai?.name ?? null);
     setVoterId(session?.id ?? null);
-    setSessionMethod(session?.method ?? null);
     setMonth(currentMonth);
     setMeeting(
       currentMoai ? ensureMeeting(currentMoai.id, currentMonth) : null,
@@ -219,7 +215,7 @@ export function MeetingsClient() {
       }
       const result = await getHuddleToken({
         roomId,
-        address: sessionMethod === "wallet" ? voterId : null,
+        address: voterId,
       });
       if (!result.ok) {
         setHuddleError(result.error);
@@ -276,7 +272,7 @@ export function MeetingsClient() {
 
       const tok = await getHuddleToken({
         roomId: ensuredRoomId,
-        address: sessionMethod === "wallet" ? voterId : null,
+        address: voterId,
       });
       if (!tok.ok) {
         setHuddleError(tok.error);

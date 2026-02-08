@@ -34,24 +34,21 @@ export default function LearnPage() {
           one group.
         </li>
         <li>Each moai has a maximum of 5 to 10 members.</li>
-        <li>An ENS name is created for every moai.</li>
+        <li>Member addresses show ENS names when available.</li>
       </ul>
 
       <h2 className="mt-10 text-xl font-semibold tracking-tight">
         Monthly contributions
       </h2>
       <ul className="mt-4 list-disc space-y-3 pl-5 text-base leading-7 text-neutral-800">
-        <li>Every month, each member pays a fixed amount before a set date.</li>
+        <li>Every month, each member pays a fixed USDC amount.</li>
         <li>
-          Missed payments can be made within the same calendar month due to
-          unforeseen circumstances and are added to the following month&apos;s
-          pool.
+          Each month&apos;s collected amount is split: 70% to the round-robin
+          recipient, 30% to the emergency reserve.
         </li>
+        <li>Missed payments are tracked as outstanding and can be settled.</li>
         <li>Members can view past transactions in My History.</li>
-        <li>
-          Consistent savings can be invested each month into a low-risk, easily
-          liquidifiable yield strategy.
-        </li>
+        <li>Yield strategies are optional future add-ons.</li>
       </ul>
 
       <h2 className="mt-10 text-xl font-semibold tracking-tight">Meetings</h2>
@@ -66,19 +63,17 @@ export default function LearnPage() {
       <p className="mt-3 text-base leading-7 text-neutral-800">
         When a member has an emergency situation, they can raise a request with
         the amount they need (or anyone on their behalf). At least 51% of the
-        members need to approve for it to pass through, and the amount is sent
-        to the beneficiary.
+        members need to approve for it to pass through, and the emergency
+        reserve becomes withdrawable for the beneficiary.
       </p>
 
       <h2 className="mt-10 text-xl font-semibold tracking-tight">
-        Rotation (when no emergencies)
+        Rotation (round robin)
       </h2>
       <p className="mt-3 text-base leading-7 text-neutral-800">
-        If no one has raised an emergency request in the previous cycle (each
-        cycle is 6 months), a member is chosen to receive the pool based on
-        mutual understanding and need. The goal is for everyone to eventually
-        receive the pot before the cycle repeats, excluding emergency
-        withdrawals.
+        Each month, one member becomes the recipient in a simple round-robin
+        order. That month&apos;s distribution amount is withdrawable by the
+        recipient.
       </p>
 
       <h2 className="mt-10 text-xl font-semibold tracking-tight">

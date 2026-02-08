@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { getKernelAccountAddress } from "@/lib/aa";
 import { readMyMoai } from "@/lib/moai";
 import { readSession } from "@/lib/session";
 import { parseUSDC } from "@/lib/usdc";
@@ -28,7 +29,15 @@ export function DepositClient() {
         ? parseUSDC(moai.monthlyContributionUSDC)
         : null,
     );
-    setWalletAddress(session?.method === "wallet" ? session.id : null);
+    if (session?.method === "wallet") {
+      setWalletAddress(session.id);
+    } else if (session?.id) {
+      getKernelAccountAddress({ identityId: session.id })
+        .then((addr) => setWalletAddress(addr))
+        .catch(() => setWalletAddress(null));
+    } else {
+      setWalletAddress(null);
+    }
     setReady(true);
   }, []);
 

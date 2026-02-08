@@ -2,6 +2,7 @@ import { readJson, writeJson } from "./storage";
 
 export type ProofRef = {
   id: string;
+  uri?: string;
   name: string;
   mime: string;
   size: number;
@@ -59,8 +60,8 @@ function fileToDataUrl(file: File): Promise<string> {
 }
 
 export function toProofRef(proof: Proof): ProofRef {
-  const { id, name, mime, size, sha256, uploadedAt } = proof;
-  return { id, name, mime, size, sha256, uploadedAt };
+  const { id, uri, name, mime, size, sha256, uploadedAt } = proof;
+  return { id, uri, name, mime, size, sha256, uploadedAt };
 }
 
 export function getProofById(id: string): Proof | null {
@@ -89,6 +90,32 @@ export async function uploadProof(input: {
   const sha256 = await sha256Hex(data);
   if (!sha256) return { ok: false, error: "Crypto not available." };
 
+  let uri: string | undefined;
+  let uploadedAt: string | undefined;
+  try {
+    const form = new FormData();
+    form.set("file", file);
+    const res = await fetch("/api/files", { method: "POST", body: form });
+    if (!res.ok) return { ok: false, error: "Upload failed." };
+    const json = (await res.json().catch(() => null)) as {
+      uri?: unknown;
+      hash?: unknown;
+      uploadedAt?: unknown;
+    } | null;
+    const serverHash = typeof json?.hash === "string" ? json.hash.trim() : "";
+    if (!serverHash.length) return { ok: false, error: "Upload failed." };
+    if (serverHash.toLowerCase() !== sha256.toLowerCase()) {
+      return { ok: false, error: "Upload failed." };
+    }
+    const serverUri = typeof json?.uri === "string" ? json.uri.trim() : "";
+    if (serverUri.length) uri = serverUri;
+    const serverUploadedAt =
+      typeof json?.uploadedAt === "string" ? json.uploadedAt.trim() : "";
+    if (serverUploadedAt.length) uploadedAt = serverUploadedAt;
+  } catch {
+    return { ok: false, error: "Upload failed." };
+  }
+
   let dataUrl: string | undefined;
   if (file.size <= maxBytesForDataUrl) {
     try {
@@ -100,13 +127,14 @@ export async function uploadProof(input: {
 
   const proof: Proof = {
     id: makeId(),
+    uri,
     name: file.name.trim().length ? file.name.trim() : "proof",
     mime: file.type.trim().length
       ? file.type.trim()
       : "application/octet-stream",
     size: file.size,
     sha256,
-    uploadedAt: new Date().toISOString(),
+    uploadedAt: uploadedAt ?? new Date().toISOString(),
     dataUrl,
   };
 
