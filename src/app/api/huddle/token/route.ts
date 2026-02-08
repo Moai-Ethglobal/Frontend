@@ -158,26 +158,38 @@ export async function POST(req: Request) {
     transport: http(rpcUrl),
   });
 
-  const okSig = await publicClient
-    .verifyMessage({
+  let okSig = false;
+  try {
+    okSig = await publicClient.verifyMessage({
       address: address as Address,
       message: record.message,
       signature: signature as `0x${string}`,
-    })
-    .catch(() => false);
+    });
+  } catch {
+    return NextResponse.json(
+      { error: "signature verification failed" },
+      { status: 503 },
+    );
+  }
 
   if (!okSig) {
     return NextResponse.json({ error: "signature invalid" }, { status: 401 });
   }
 
-  const rawMemberInfo = await publicClient
-    .readContract({
+  let rawMemberInfo: unknown = null;
+  try {
+    rawMemberInfo = await publicClient.readContract({
       address: moaiAddressRaw as Address,
       abi: MOAI_ABI,
       functionName: "memberInfo",
       args: [address as Address],
-    })
-    .catch(() => null);
+    });
+  } catch {
+    return NextResponse.json(
+      { error: "membership check failed" },
+      { status: 503 },
+    );
+  }
   const isActiveMember =
     rawMemberInfo != null &&
     (Array.isArray(rawMemberInfo)

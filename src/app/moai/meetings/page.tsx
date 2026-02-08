@@ -9,7 +9,7 @@ export default function MeetingsPage() {
         Meetings
       </h1>
       <p className="mt-3 text-pretty text-base leading-7 text-neutral-800">
-        Monthly check-in keeps membership active.
+        Monthly check-in helps keep the circle active.
       </p>
 
       <div className="mt-10 flex flex-col gap-3 sm:flex-row">

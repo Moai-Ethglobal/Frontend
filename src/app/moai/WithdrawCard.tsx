@@ -125,10 +125,10 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
   const canWithdraw =
     ready &&
     Boolean(voterId) &&
-    Boolean(month) &&
     memberActive &&
-    activeThisMonth &&
-    (onchain ? onchainAvailable > 0 : isNext && available > 0);
+    (onchain
+      ? onchainAvailable > 0
+      : Boolean(month) && isNext && available > 0);
 
   const fmt = useMemo(() => {
     return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
@@ -143,14 +143,6 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
     }
     if (!memberActive) {
       setError("Only active members can withdraw.");
-      return;
-    }
-    if (!month) {
-      setError("Missing month context.");
-      return;
-    }
-    if (!activeThisMonth) {
-      setError("Check in for this month to withdraw.");
       return;
     }
 
@@ -171,6 +163,10 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
       return;
     }
 
+    if (!month) {
+      setError("Missing month context.");
+      return;
+    }
     if (!isNext) {
       setError("Only the next member can withdraw (demo).");
       return;
@@ -215,17 +211,20 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
             {voterId
               ? !memberActive
                 ? "You need to be a member to withdraw."
-                : activeThisMonth
-                  ? onchain
-                    ? onchainAvailable > 0
-                      ? "Ready to withdraw."
-                      : "Nothing to withdraw right now."
-                    : isNext
-                      ? "It is your turn to receive funds."
-                      : `Next in line: ${nextMember?.displayName ?? "—"}`
-                  : "Please check in at this month's meeting first."
+                : onchain
+                  ? onchainAvailable > 0
+                    ? "Ready to withdraw."
+                    : "Nothing to withdraw right now."
+                  : isNext
+                    ? "It is your turn to receive funds."
+                    : `Next in line: ${nextMember?.displayName ?? "—"}`
               : "Please sign in to withdraw."}
           </p>
+          {!activeThisMonth && voterId && memberActive ? (
+            <p className="mt-1 text-base text-neutral-600">
+              Tip: check in for this month (recommended).
+            </p>
+          ) : null}
         </div>
 
         {!voterId ? (

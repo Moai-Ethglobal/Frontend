@@ -98,7 +98,7 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
     moai && voterId && isActiveMemberId(moai, voterId),
   );
 
-  const activeThisMonth =
+  const checkedInThisMonth =
     Boolean(moaiId) &&
     Boolean(voterId) &&
     Boolean(month) &&
@@ -112,7 +112,7 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
   const canVote =
     Boolean(voterId) &&
     Boolean(moaiId) &&
-    activeThisMonth &&
+    memberActive &&
     status === "open" &&
     memberCount > 0;
 
@@ -127,18 +127,8 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
       setError("Missing Moai context.");
       return;
     }
-    if (!month) {
-      setError("Missing month context.");
-      return;
-    }
-    if (
-      !hasCheckedIn({
-        moaiId,
-        month,
-        voterId,
-      })
-    ) {
-      setError("Check in for this month to vote.");
+    if (!memberActive) {
+      setError("Only active members can vote.");
       return;
     }
 
@@ -183,18 +173,8 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
       setExecError("Missing Moai context.");
       return;
     }
-    if (!month) {
-      setExecError("Missing month context.");
-      return;
-    }
-    if (
-      !hasCheckedIn({
-        moaiId,
-        month,
-        voterId,
-      })
-    ) {
-      setExecError("Check in for this month to execute.");
+    if (!memberActive) {
+      setExecError("Only active members can execute.");
       return;
     }
 
@@ -324,7 +304,7 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
             >
               Login
             </Link>
-          ) : !activeThisMonth ? (
+          ) : !checkedInThisMonth ? (
             <Link
               className="text-sm font-medium text-neutral-900 hover:underline"
               href="/moai/meetings"
@@ -333,9 +313,9 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
             </Link>
           ) : null}
         </div>
-        {!activeThisMonth && voterId ? (
+        {!checkedInThisMonth && voterId ? (
           <p className="mt-3 text-sm text-neutral-700">
-            Not active this month. Check in at the monthly meeting to vote.
+            Not checked in this month. Check-in is optional, but recommended.
           </p>
         ) : null}
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
@@ -370,7 +350,7 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
               >
                 Login
               </Link>
-            ) : !activeThisMonth ? (
+            ) : !checkedInThisMonth ? (
               <Link
                 className="text-sm font-medium text-neutral-900 hover:underline"
                 href="/moai/meetings"
@@ -407,9 +387,7 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
                 <button
                   className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                   type="button"
-                  disabled={
-                    !(status === "passed" && activeThisMonth && voterId)
-                  }
+                  disabled={!(status === "passed" && memberActive && voterId)}
                   onClick={onExecute}
                 >
                   Execute payout (mock)

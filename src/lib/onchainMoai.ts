@@ -17,6 +17,8 @@ import { getWalletProvider } from "./wallet";
 
 const USDC_DECIMALS = 6;
 
+const READ_STATE_INFLIGHT = new Map<string, Promise<OnchainMoaiState | null>>();
+
 const ERC20_ABI = [
   {
     type: "function",
@@ -184,6 +186,28 @@ function parseMemberInfo(value: unknown): {
 }
 
 export async function readOnchainMoaiState(input: {
+  sessionId: string | null;
+}): Promise<OnchainMoaiState | null> {
+  const cfg = readOnchainMoaiConfig();
+  if (!cfg) return null;
+
+  const sessionId = input.sessionId?.trim() ?? "";
+  if (!sessionId.length) return null;
+
+  const key = `${cfg.chainId ?? "x"}:${cfg.moaiAddress.toLowerCase()}:${sessionId.toLowerCase()}`;
+  const inflight = READ_STATE_INFLIGHT.get(key);
+  if (inflight) return inflight;
+
+  const promise = readOnchainMoaiStateUncached({ sessionId });
+  READ_STATE_INFLIGHT.set(key, promise);
+  try {
+    return await promise;
+  } finally {
+    READ_STATE_INFLIGHT.delete(key);
+  }
+}
+
+async function readOnchainMoaiStateUncached(input: {
   sessionId: string | null;
 }): Promise<OnchainMoaiState | null> {
   const cfg = readOnchainMoaiConfig();

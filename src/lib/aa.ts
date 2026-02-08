@@ -2,7 +2,7 @@ import { createSmartAccountClient } from "permissionless";
 import { toKernelSmartAccount } from "permissionless/accounts";
 import { createPimlicoClient } from "permissionless/clients/pimlico";
 import type { Address } from "viem";
-import { createPublicClient, defineChain, http } from "viem";
+import { createPublicClient, defineChain, http, zeroAddress } from "viem";
 import { entryPoint07Address } from "viem/account-abstraction";
 import {
   generatePrivateKey,
@@ -64,7 +64,8 @@ export async function getKernelAccountAddress(input: {
     kernelAddrKey(input.identityId, cfg.chainId),
   );
   const cachedAddr = asHex(cached);
-  if (cachedAddr) return cachedAddr as Address;
+  if (cachedAddr && cachedAddr.toLowerCase() !== zeroAddress)
+    return cachedAddr as Address;
 
   const owner = getEmbeddedOwnerAccount(input.identityId);
   if (!owner) return null;
@@ -91,9 +92,11 @@ export async function getKernelAccountAddress(input: {
     entryPoint: { address: entryPoint07Address, version: "0.7" },
     owners: [owner],
     index: 0n,
+    useMetaFactory: "optional",
   });
 
   const addr = kernelAccount.address as Address;
+  if (addr.toLowerCase() === zeroAddress) return null;
   writeJson(kernelAddrKey(input.identityId, cfg.chainId), addr);
   return addr;
 }
@@ -140,6 +143,7 @@ export async function getAaClients(input: { identityId: string }): Promise<{
     entryPoint: { address: entryPoint07Address, version: "0.7" },
     owners: [owner],
     index: 0n,
+    useMetaFactory: "optional",
   });
 
   const smartAccountClient = createSmartAccountClient({
@@ -154,6 +158,7 @@ export async function getAaClients(input: { identityId: string }): Promise<{
   });
 
   const smartAccountAddress = kernelAccount.address as Address;
+  if (smartAccountAddress.toLowerCase() === zeroAddress) return null;
   writeJson(kernelAddrKey(input.identityId, cfg.chainId), smartAccountAddress);
 
   return {
@@ -168,10 +173,14 @@ export async function signAaMessage(input: {
   identityId: string;
   message: string;
 }): Promise<`0x${string}` | null> {
-  const owner = getEmbeddedOwnerAccount(input.identityId);
-  if (!owner) return null;
+  const aa = await getAaClients({ identityId: input.identityId });
+  if (!aa) return null;
+  const account = aa.smartAccountClient.account;
+  if (!account) return null;
   try {
-    const sig = await owner.signMessage({ message: input.message });
+    const sig = await account.signMessage({
+      message: input.message,
+    });
     return typeof sig === "string" ? (sig as `0x${string}`) : null;
   } catch {
     return null;

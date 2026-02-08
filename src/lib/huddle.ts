@@ -14,6 +14,26 @@ function asString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+function friendlyTokenError(error: string): string {
+  const e = error.trim();
+  if (!e.length) return "Unable to mint token.";
+
+  if (e === "Use POST for gated tokens") {
+    return "Meeting gating is enabled. Connect a wallet or configure AA.";
+  }
+  if (
+    e === "signature verification failed" ||
+    e === "membership check failed"
+  ) {
+    return "Chain RPC is busy. Try again in a moment.";
+  }
+  if (e === "not a member") {
+    return "Not a member onchain.";
+  }
+
+  return e;
+}
+
 export async function createHuddleRoom(input: {
   title: string;
 }): Promise<Ok<{ roomId: string }> | Err> {
@@ -110,10 +130,10 @@ async function tryGatedToken(input: {
   const token = asString(tokenObj?.token)?.trim();
 
   if (!tokenRes.ok) {
-    const error = asString(tokenObj?.error)?.trim();
+    const error = friendlyTokenError(asString(tokenObj?.error) ?? "");
     return {
       ok: false,
-      error: error?.length ? error : "Unable to mint token.",
+      error,
     };
   }
 
@@ -165,10 +185,10 @@ export async function getHuddleToken(input: {
     const token = asString(obj?.token)?.trim();
 
     if (!res.ok) {
-      const error = asString(obj?.error)?.trim();
+      const error = friendlyTokenError(asString(obj?.error) ?? "");
       return {
         ok: false,
-        error: error?.length ? error : "Unable to generate token.",
+        error,
       };
     }
 
