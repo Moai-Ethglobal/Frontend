@@ -8,7 +8,7 @@ import {
   readSession,
   writeSession,
 } from "@/lib/session";
-import { requestWalletAccounts } from "@/lib/wallet";
+import { requestWalletAccountsDetailed } from "@/lib/wallet";
 
 export function AuthActions() {
   const router = useRouter();
@@ -22,14 +22,12 @@ export function AuthActions() {
   const onLogin = async (method: "passkey" | "email" | "wallet") => {
     setError(null);
     if (method === "wallet") {
-      const accounts = await requestWalletAccounts();
-      const address = accounts?.[0];
-      if (!address) {
-        setError(
-          "No wallet detected. Install a wallet extension, or open this page in your wallet app.",
-        );
+      const result = await requestWalletAccountsDetailed();
+      if (!result.ok) {
+        setError(result.error);
         return;
       }
+      const address = result.accounts[0];
       createSessionWithId("wallet", address.trim().toLowerCase());
       setSignedIn(true);
       router.push("/moai");

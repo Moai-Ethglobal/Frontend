@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { shortEvmAddress } from "@/lib/evm";
 import { invitePath } from "@/lib/invite";
 import { isMemberActive, type MyMoai, readMyMoai } from "@/lib/moai";
+import { readOnchainMoaiConfig } from "@/lib/onchainConfig";
 import { STORAGE_CHANGE_EVENT, type StorageChangeDetail } from "@/lib/storage";
 import { ActiveStatusCard } from "./ActiveStatusCard";
 import { ContributionCard } from "./ContributionCard";
@@ -33,12 +34,16 @@ function asString(value: unknown): string | null {
 export function MyMoaiClient() {
   const [moai, setMoai] = useState<MyMoai | null>(null);
   const [ready, setReady] = useState(false);
+  const [onchainMoaiAddress, setOnchainMoaiAddress] = useState<string | null>(
+    null,
+  );
   const [ensByMemberId, setEnsByMemberId] = useState<
     Record<string, { name: string | null; avatar: string | null }>
   >({});
 
   const refresh = useCallback(() => {
     setMoai(readMyMoai());
+    setOnchainMoaiAddress(readOnchainMoaiConfig()?.moaiAddress ?? null);
     setReady(true);
   }, []);
 
@@ -48,7 +53,8 @@ export function MyMoaiClient() {
     const onChanged = (evt: Event) => {
       const detail = (evt as CustomEvent<StorageChangeDetail>).detail;
       if (!detail?.key) return;
-      if (detail.key !== "moai.myMoai.v1") return;
+      if (detail.key !== "moai.myMoai.v1" && detail.key !== "moai.onchain.v1")
+        return;
       refresh();
     };
 
@@ -57,12 +63,17 @@ export function MyMoaiClient() {
   }, [refresh]);
 
   const localInvitePath = moai ? invitePath(moai.inviteCode) : null;
+  const onchainInvitePath = onchainMoaiAddress
+    ? invitePath(onchainMoaiAddress)
+    : null;
 
-  const localInviteUrl = useMemo(() => {
-    if (!localInvitePath) return null;
-    if (typeof window === "undefined") return localInvitePath;
-    return `${window.location.origin}${localInvitePath}`;
-  }, [localInvitePath]);
+  const shareInvitePath = onchainInvitePath ?? localInvitePath;
+
+  const shareInviteUrl = useMemo(() => {
+    if (!shareInvitePath) return null;
+    if (typeof window === "undefined") return shareInvitePath;
+    return `${window.location.origin}${shareInvitePath}`;
+  }, [shareInvitePath]);
 
   const activeMembers = useMemo(() => {
     return moai ? moai.members.filter(isMemberActive) : [];
@@ -138,6 +149,29 @@ export function MyMoaiClient() {
             Learn
           </Link>
         </div>
+
+        {onchainMoaiAddress ? (
+          <div className="mt-10 rounded-xl border border-neutral-200 p-4">
+            <h2 className="text-sm font-semibold">Onchain</h2>
+            <p className="mt-2 text-sm text-neutral-700">
+              Contract:{" "}
+              <span className="font-mono text-xs">
+                {shortEvmAddress(onchainMoaiAddress)}
+              </span>
+            </p>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Link
+                className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+                href="/moai/meetings"
+              >
+                Open meetings
+              </Link>
+              <span className="text-sm text-neutral-600">
+                You can still use token-gated meetings.
+              </span>
+            </div>
+          </div>
+        ) : null}
       </>
     );
   }
@@ -172,19 +206,24 @@ export function MyMoaiClient() {
         <p className="mt-2 text-sm text-neutral-700">
           Share this link to add members.
         </p>
-        {localInviteUrl ? (
+        {shareInviteUrl ? (
           <div className="mt-3 space-y-3">
             <input
               className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-900"
               readOnly
-              value={localInviteUrl}
+              value={shareInviteUrl}
             />
             <Link
               className="text-sm font-medium text-neutral-900 hover:underline"
-              href={localInvitePath ?? "/"}
+              href={shareInvitePath ?? "/"}
             >
               Open join page
             </Link>
+            {onchainInvitePath ? (
+              <p className="text-xs text-neutral-600">
+                Onchain invite works across devices.
+              </p>
+            ) : null}
           </div>
         ) : null}
       </div>

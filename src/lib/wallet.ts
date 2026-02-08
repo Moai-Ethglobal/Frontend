@@ -4,13 +4,42 @@ export type WalletProvider = {
 
 export type WalletCapabilities = Record<string, unknown>;
 
+type EthereumProviderLike = {
+  request?: unknown;
+  isMetaMask?: boolean;
+};
+
+type EthereumLike = EthereumProviderLike & {
+  providers?: unknown;
+};
+
+function asProvider(value: unknown): WalletProvider | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as EthereumProviderLike;
+  if (typeof v.request !== "function") return null;
+  return v as WalletProvider;
+}
+
 export function getWalletProvider(): WalletProvider | null {
   if (typeof window === "undefined") return null;
   const eth = (window as unknown as { ethereum?: unknown }).ethereum as
-    | { request?: unknown }
+    | EthereumLike
     | undefined;
-  if (!eth || typeof eth.request !== "function") return null;
-  return eth as WalletProvider;
+  if (!eth) return null;
+
+  // Some browsers (e.g. Brave) expose multiple injected providers.
+  const rawProviders = Array.isArray(eth.providers)
+    ? (eth.providers as unknown[])
+    : [eth];
+  const providers = rawProviders.map(asProvider).filter(Boolean);
+  if (providers.length === 0) return null;
+
+  const metamask = rawProviders.find((p) => {
+    if (!p || typeof p !== "object") return false;
+    return (p as EthereumProviderLike).isMetaMask === true;
+  });
+
+  return asProvider(metamask) ?? providers[0] ?? null;
 }
 
 export async function requestWalletAccounts(): Promise<string[] | null> {
@@ -23,6 +52,54 @@ export async function requestWalletAccounts(): Promise<string[] | null> {
     return result as string[];
   } catch {
     return null;
+  }
+}
+
+export type RequestWalletAccountsResult =
+  | { ok: true; accounts: string[] }
+  | { ok: false; error: string };
+
+function asEip1193Error(value: unknown): { code?: number; message?: string } {
+  if (!value || typeof value !== "object") return {};
+  const v = value as Record<string, unknown>;
+  const code = typeof v.code === "number" ? v.code : undefined;
+  const message = typeof v.message === "string" ? v.message : undefined;
+  return { code, message };
+}
+
+function friendlyWalletError(value: unknown): string {
+  const e = asEip1193Error(value);
+  if (e.code === 4001) return "Request rejected in wallet.";
+  if (e.code === -32002)
+    return "A wallet request is already pending. Open your wallet to continue.";
+  if (e.message?.trim()) return e.message.trim();
+  return "Unable to connect wallet.";
+}
+
+export async function requestWalletAccountsDetailed(): Promise<RequestWalletAccountsResult> {
+  const provider = getWalletProvider();
+  if (!provider) {
+    return {
+      ok: false,
+      error:
+        "No wallet provider detected. If you're on Brave, enable MetaMask as your injected wallet.",
+    };
+  }
+
+  try {
+    const result = await provider.request({ method: "eth_requestAccounts" });
+    if (!Array.isArray(result)) {
+      return { ok: false, error: "Invalid wallet response." };
+    }
+    if (!result.every((x) => typeof x === "string")) {
+      return { ok: false, error: "Invalid wallet response." };
+    }
+    const accounts = (result as string[]).map((a) => a.trim()).filter(Boolean);
+    if (accounts.length === 0)
+      return { ok: false, error: "No accounts found." };
+    return { ok: true, accounts };
+  } catch (err) {
+    return { ok: false, error: friendlyWalletError(err) };
   }
 }
 

@@ -14,6 +14,9 @@ import {
 } from "@/lib/meetings";
 import type { MyMoai } from "@/lib/moai";
 import { isActiveMemberId, readMyMoai } from "@/lib/moai";
+import { readOnchainMoaiConfig } from "@/lib/onchainConfig";
+import type { OnchainMoaiState } from "@/lib/onchainMoai";
+import { readOnchainMoaiState } from "@/lib/onchainMoai";
 import { readSession } from "@/lib/session";
 import { monthKey } from "@/lib/time";
 
@@ -34,21 +37,51 @@ export function MeetingsClient() {
   const [huddleError, setHuddleError] = useState<string | null>(null);
   const [huddleLoading, setHuddleLoading] = useState(false);
   const [autoJoin, setAutoJoin] = useState(false);
+  const [onchainMoaiAddress, setOnchainMoaiAddress] = useState<string | null>(
+    null,
+  );
+  const [onchainLoading, setOnchainLoading] = useState(false);
+  const [onchain, setOnchain] = useState<OnchainMoaiState | null>(null);
 
   useEffect(() => {
     const currentMonth = monthKey(new Date());
     const currentMoai = readMyMoai();
+    const onchainCfg = readOnchainMoaiConfig();
     const session = readSession();
+    const effectiveMoaiId = onchainCfg?.moaiAddress ?? currentMoai?.id ?? null;
     setMoai(currentMoai);
-    setMoaiId(currentMoai?.id ?? null);
+    setOnchainMoaiAddress(onchainCfg?.moaiAddress ?? null);
+    setMoaiId(effectiveMoaiId);
     setMoaiName(currentMoai?.name ?? null);
     setVoterId(session?.id ?? null);
     setMonth(currentMonth);
     setMeeting(
-      currentMoai ? ensureMeeting(currentMoai.id, currentMonth) : null,
+      effectiveMoaiId ? ensureMeeting(effectiveMoaiId, currentMonth) : null,
     );
     setReady(true);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!voterId) return;
+    if (!onchainMoaiAddress) return;
+
+    setOnchainLoading(true);
+    readOnchainMoaiState({ sessionId: voterId })
+      .then((state) => {
+        if (cancelled) return;
+        setOnchain(state);
+        if (state?.moaiName) setMoaiName(state.moaiName);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setOnchainLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [voterId, onchainMoaiAddress]);
 
   const roomId = meeting?.huddleRoomId ?? null;
 
@@ -63,12 +96,17 @@ export function MeetingsClient() {
     ? Object.keys(meeting.attendanceByVoterId).length
     : 0;
 
-  const memberActive = Boolean(
+  const memberActiveLocal = Boolean(
     moai && voterId && isActiveMemberId(moai, voterId),
   );
+  const memberActive = onchain ? onchain.isMember : memberActiveLocal;
 
   const canCheckIn =
-    Boolean(meeting) && Boolean(voterId) && memberActive && !checkedInAt;
+    Boolean(meeting) &&
+    Boolean(voterId) &&
+    !onchainLoading &&
+    memberActive &&
+    !checkedInAt;
 
   const onCheckIn = (input?: { silent?: boolean }) => {
     if (checkedInAt) return;
@@ -133,24 +171,6 @@ export function MeetingsClient() {
             href="/auth"
           >
             Login
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  if (!memberActive) {
-    return (
-      <div className="mt-10 rounded-xl border border-neutral-200 p-4">
-        <p className="text-sm text-neutral-700">
-          This account is not an active member of this Moai.
-        </p>
-        <div className="mt-4">
-          <Link
-            className="text-sm font-medium text-neutral-900 hover:underline"
-            href="/auth"
-          >
-            Switch account
           </Link>
         </div>
       </div>
@@ -369,7 +389,7 @@ export function MeetingsClient() {
           <button
             className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             type="button"
-            disabled={huddleLoading}
+            disabled={huddleLoading || onchainLoading || !memberActive}
             onClick={() => void onStartMeeting()}
           >
             {huddleLoading ? "Preparing…" : "Start meeting"}
@@ -377,7 +397,7 @@ export function MeetingsClient() {
           <button
             className="inline-flex items-center justify-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-900 disabled:opacity-50"
             type="button"
-            disabled={huddleLoading}
+            disabled={huddleLoading || onchainLoading || !memberActive}
             onClick={() => void onCreateRoom()}
           >
             Create room
@@ -385,7 +405,9 @@ export function MeetingsClient() {
           <button
             className="inline-flex items-center justify-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-900 disabled:opacity-50"
             type="button"
-            disabled={huddleLoading || !roomId}
+            disabled={
+              huddleLoading || onchainLoading || !memberActive || !roomId
+            }
             onClick={() => void onGetToken()}
           >
             Get token
@@ -414,6 +436,32 @@ export function MeetingsClient() {
           <p className="mt-3 text-sm text-red-600">{huddleError}</p>
         ) : null}
 
+        {onchainMoaiAddress ? (
+          <p className="mt-3 text-sm text-neutral-700">
+            Onchain membership:{" "}
+            <span className="font-medium text-neutral-900">
+              {onchainLoading
+                ? "checking…"
+                : onchain
+                  ? onchain.isMember
+                    ? "active"
+                    : "not a member"
+                  : "unable to verify"}
+            </span>
+            {!onchainLoading && onchain && !onchain.isMember ? (
+              <>
+                {" "}
+                <Link
+                  className="hover:underline"
+                  href={`/invite/${onchainMoaiAddress}`}
+                >
+                  Join onchain
+                </Link>
+              </>
+            ) : null}
+          </p>
+        ) : null}
+
         {roomId && token ? (
           <HuddleJoinPanel
             roomId={roomId}
@@ -423,10 +471,17 @@ export function MeetingsClient() {
           />
         ) : null}
 
-        <p className="mt-3 text-sm text-neutral-600">
-          Set <span className="font-mono text-xs">HUDDLE_API_KEY</span> in{" "}
-          <span className="font-mono text-xs">.env</span> to enable.
-        </p>
+        <details className="mt-3">
+          <summary className="cursor-pointer text-sm font-medium text-neutral-900">
+            Setup
+          </summary>
+          <p className="mt-2 text-sm text-neutral-600">
+            In local dev, set{" "}
+            <span className="font-mono text-xs">HUDDLE_API_KEY</span> in{" "}
+            <span className="font-mono text-xs">.env</span> to enable
+            server-side room and token generation.
+          </p>
+        </details>
       </div>
     </div>
   );
