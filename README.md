@@ -32,16 +32,6 @@ Architecture (high level)
   - Setting NEXT_PUBLIC_MOAI_CONTRACT_ADDRESS enables onchain reads/writes in the UI.
   - Setting MOAI_CONTRACT_ADDRESS + MOAI_RPC_URL enables meeting token gating on the server.
 
-What to try (2 minutes)
-1) Go to /auth and sign in (wallet, passkey, or email)
-2) Create a circle at /moai/create
-3) On /moai:
-   - Pay now (local demo)
-   - See the 70/30 split (round robin / emergency reserve)
-   - Withdraw when it’s your turn
-4) Go to /moai/meetings:
-   - Add to calendar (.ics)
-   - Start meeting (Huddle01)
 
 Quick start
 1) npm install
