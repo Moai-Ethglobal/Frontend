@@ -660,12 +660,26 @@ export function OnchainCard() {
 
           {state ? (
             <>
-              <p className="mt-2">
-                Member:{" "}
-                <span className="font-medium text-neutral-900">
-                  {state.isMember ? "yes" : "no"}
-                </span>
-              </p>
+              {state.moaiName ? (
+                <p className="mt-2 text-base font-semibold text-neutral-900">
+                  {state.moaiName}
+                </p>
+              ) : null}
+
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <p>
+                  Member:{" "}
+                  <span className="font-medium text-neutral-900">
+                    {state.isMember ? "yes" : "no"}
+                  </span>
+                </p>
+                <p>
+                  Members:{" "}
+                  <span className="font-medium text-neutral-900">
+                    {state.activeMemberCount.toString()}
+                  </span>
+                </p>
+              </div>
 
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <p>
@@ -708,6 +722,36 @@ export function OnchainCard() {
                   </span>
                 </p>
                 <p>
+                  Pending payout:{" "}
+                  <span className="font-medium text-neutral-900">
+                    {state.pendingDistributionUSDC} USDC
+                  </span>
+                </p>
+              </div>
+
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <p>
+                  Current recipient:{" "}
+                  <span className="font-mono text-xs font-medium text-neutral-900">
+                    {state.currentRecipient
+                      ? shortEvmAddress(state.currentRecipient)
+                      : "—"}
+                  </span>
+                </p>
+                <p>
+                  Next distribution:{" "}
+                  <span className="font-medium text-neutral-900">
+                    {state.nextDistributionDate > 0n
+                      ? new Date(
+                          Number(state.nextDistributionDate) * 1000,
+                        ).toLocaleDateString()
+                      : "—"}
+                  </span>
+                </p>
+              </div>
+
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <p>
                   Dissolution:{" "}
                   <span className="font-medium text-neutral-900">
                     {state.isDissolved ? "dissolved" : "active"}
@@ -716,14 +760,22 @@ export function OnchainCard() {
                     ({state.dissolutionVotes.toString()} votes)
                   </span>
                 </p>
+                {state.isDissolved ? (
+                  <p>
+                    Share:{" "}
+                    <span className="font-medium text-neutral-900">
+                      {state.dissolutionShareUSDC} USDC
+                    </span>
+                  </p>
+                ) : null}
               </div>
 
-              <p className="mt-3">
+              <p className="mt-3 text-base font-medium">
                 Withdrawable:{" "}
-                <span className="font-medium text-neutral-900">
+                <span className="text-neutral-900">
                   {state.withdrawableUSDC} USDC
                 </span>{" "}
-                <span className="text-neutral-600">
+                <span className="text-sm text-neutral-600">
                   ({state.withdrawReason})
                 </span>
               </p>

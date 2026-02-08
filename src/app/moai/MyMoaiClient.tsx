@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { shortEvmAddress } from "@/lib/evm";
@@ -143,11 +144,28 @@ export function MyMoaiClient() {
 
   return (
     <>
-      <p className="mt-3 text-pretty text-base leading-7 text-neutral-800">
+      <p className="mt-3 text-pretty text-lg leading-8 text-neutral-800">
         {moai.name} · {activeMembers.length} member
         {activeMembers.length === 1 ? "" : "s"}
         {pastMembers.length > 0 ? ` (+${pastMembers.length} past)` : ""}
       </p>
+
+      <div className="mt-8 grid gap-4 sm:grid-cols-3">
+        <Link
+          className="flex min-h-[56px] items-center justify-center rounded-xl bg-neutral-900 px-6 py-3 text-base font-semibold text-white hover:bg-neutral-800"
+          href="/moai/meetings"
+        >
+          Check in
+        </Link>
+        <ContributionCard moai={moai} />
+        <WithdrawCard moai={moai} />
+      </div>
+
+      <ActiveStatusCard moaiId={moai.id} />
+
+      <PoolCard moaiId={moai.id} />
+
+      <OrderCard moai={moai} />
 
       <div className="mt-10 rounded-xl border border-neutral-200 p-4">
         <h2 className="text-sm font-semibold">Invite</h2>
@@ -171,14 +189,6 @@ export function MyMoaiClient() {
         ) : null}
       </div>
 
-      <ActiveStatusCard moaiId={moai.id} />
-
-      <ExecutionCard />
-
-      <OnchainCard />
-
-      <PoolCard moaiId={moai.id} />
-
       <div className="mt-10 rounded-xl border border-neutral-200 p-4">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-semibold">Deposit</h2>
@@ -194,13 +204,16 @@ export function MyMoaiClient() {
         </p>
       </div>
 
-      <OrderCard moai={moai} />
-
-      <ContributionCard moai={moai} />
-
-      <WithdrawCard moai={moai} />
-
-      <HistoryCard moaiId={moai.id} />
+      <details className="mt-10">
+        <summary className="cursor-pointer text-sm font-semibold text-neutral-900">
+          Advanced
+        </summary>
+        <div className="mt-4 space-y-0">
+          <ExecutionCard />
+          <OnchainCard />
+          <HistoryCard moaiId={moai.id} />
+        </div>
+      </details>
 
       <div className="mt-10 rounded-xl border border-neutral-200 p-4">
         <h2 className="text-sm font-semibold">Members</h2>
@@ -211,7 +224,18 @@ export function MyMoaiClient() {
               key={m.id}
             >
               <div className="flex min-w-0 items-center gap-3">
-                <span className="h-7 w-7 shrink-0 rounded-full border border-neutral-200 bg-neutral-50" />
+                {ensByMemberId[m.id]?.avatar ? (
+                  <Image
+                    alt=""
+                    className="h-7 w-7 shrink-0 rounded-full border border-neutral-200 object-cover"
+                    height={28}
+                    src={ensByMemberId[m.id]?.avatar ?? ""}
+                    unoptimized
+                    width={28}
+                  />
+                ) : (
+                  <span className="h-7 w-7 shrink-0 rounded-full border border-neutral-200 bg-neutral-50" />
+                )}
                 <div className="min-w-0">
                   <p className="truncate font-medium text-neutral-900">
                     {m.displayName}

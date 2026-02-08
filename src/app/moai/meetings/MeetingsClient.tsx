@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { checkInMeetingAction } from "@/lib/actions";
 import { createHuddleRoom, getHuddleToken } from "@/lib/huddle";
+import { downloadIcs, generateMeetingIcs } from "@/lib/ics";
 import type { Meeting } from "@/lib/meetings";
 import {
   ensureMeeting,
@@ -309,12 +310,32 @@ export function MeetingsClient() {
 
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <button
-            className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="inline-flex min-h-[48px] items-center justify-center rounded-lg bg-neutral-900 px-5 py-3 text-base font-semibold text-white disabled:opacity-50"
             type="button"
             disabled={!canCheckIn}
             onClick={() => onCheckIn()}
           >
             Check in
+          </button>
+          <button
+            className="inline-flex min-h-[48px] items-center justify-center rounded-lg border border-neutral-200 px-5 py-3 text-base font-medium text-neutral-900 hover:bg-neutral-50"
+            type="button"
+            onClick={() => {
+              const ics = generateMeetingIcs({
+                title: moaiName
+                  ? `${moaiName} · Monthly meeting`
+                  : "Moai meeting",
+                scheduledAt: meeting.scheduledAt,
+                durationMinutes: 60,
+                joinUrl: roomId
+                  ? `https://app.huddle01.com/${roomId}`
+                  : undefined,
+                description: "Monthly Moai check-in meeting via Huddle01.",
+              });
+              downloadIcs(`moai-${meeting.month}.ics`, ics);
+            }}
+          >
+            Add to calendar
           </button>
         </div>
 
