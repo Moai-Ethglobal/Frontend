@@ -3,20 +3,25 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ContributionPayment } from "@/lib/contributions";
 import { listContributionPaymentsByMoaiId } from "@/lib/contributions";
+import { splitMonthlyContributions } from "@/lib/economics";
+import { poolBreakdown } from "@/lib/pool";
 import type { MoaiRequest } from "@/lib/requests";
 import { listRequestsByMoaiId } from "@/lib/requests";
 import { STORAGE_CHANGE_EVENT, type StorageChangeDetail } from "@/lib/storage";
+import { monthKey } from "@/lib/time";
 import { sumUSDC } from "@/lib/usdc";
 import type { Withdrawal } from "@/lib/withdrawals";
 import { listWithdrawalsByMoaiId } from "@/lib/withdrawals";
 
 export function PoolCard({ moaiId }: { moaiId: string }) {
   const [ready, setReady] = useState(false);
+  const [month, setMonth] = useState<string | null>(null);
   const [payments, setPayments] = useState<ContributionPayment[]>([]);
   const [requests, setRequests] = useState<MoaiRequest[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
 
   const refresh = useCallback(() => {
+    setMonth(monthKey(new Date()));
     setPayments(listContributionPaymentsByMoaiId(moaiId));
     setRequests(listRequestsByMoaiId(moaiId));
     setWithdrawals(listWithdrawalsByMoaiId(moaiId));
@@ -61,14 +66,25 @@ export function PoolCard({ moaiId }: { moaiId: string }) {
 
   const balance = contributed - paidOut - withdrawn;
 
+  const breakdown = useMemo(() => {
+    if (!month) return null;
+    return poolBreakdown({ moaiId, month, payments, requests, withdrawals });
+  }, [moaiId, month, payments, requests, withdrawals]);
+
+  const monthCollectedUSDC = useMemo(() => {
+    if (!month) return 0;
+    return sumUSDC(
+      payments.filter((p) => p.month === month).map((p) => p.amountUSDC),
+    );
+  }, [month, payments]);
+
+  const split = useMemo(() => {
+    return splitMonthlyContributions(monthCollectedUSDC);
+  }, [monthCollectedUSDC]);
+
   const fmt = useMemo(() => {
     return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   }, []);
-
-  const apy = 0.03;
-  const estMonthlyYield = useMemo(() => {
-    return balance > 0 ? (balance * apy) / 12 : 0;
-  }, [balance]);
 
   if (!ready) {
     return (
@@ -105,24 +121,41 @@ export function PoolCard({ moaiId }: { moaiId: string }) {
       </p>
 
       <div className="mt-6 border-t border-neutral-200 pt-4">
-        <h3 className="text-sm font-semibold">Yield</h3>
+        <h3 className="text-sm font-semibold">This month split</h3>
         <p className="mt-2 text-sm text-neutral-700">
-          Strategy:{" "}
+          Month:{" "}
+          <span className="font-medium text-neutral-900">{month ?? "—"}</span>
+        </p>
+        <p className="mt-2 text-sm text-neutral-700">
+          Collected:{" "}
           <span className="font-medium text-neutral-900">
-            low-risk, liquid (demo)
+            {fmt.format(monthCollectedUSDC)} USDC
           </span>
         </p>
         <p className="mt-1 text-sm text-neutral-700">
-          Est. APY:{" "}
+          Round robin (70%):{" "}
           <span className="font-medium text-neutral-900">
-            {fmt.format(apy * 100)}%
+            {fmt.format(split.distributionUSDC)} USDC
           </span>
         </p>
         <p className="mt-1 text-sm text-neutral-700">
-          Est. monthly yield:{" "}
+          Emergency reserve (30%):{" "}
           <span className="font-medium text-neutral-900">
-            {fmt.format(estMonthlyYield)} USDC
+            {fmt.format(split.reserveUSDC)} USDC
           </span>
+        </p>
+
+        {breakdown ? (
+          <p className="mt-2 text-sm text-neutral-700">
+            Emergency reserve available:{" "}
+            <span className="font-medium text-neutral-900">
+              {fmt.format(breakdown.emergencyReserveUSDC)} USDC
+            </span>
+          </p>
+        ) : null}
+
+        <p className="mt-3 text-sm text-neutral-600">
+          Yield strategies are a future add-on.
         </p>
       </div>
     </div>

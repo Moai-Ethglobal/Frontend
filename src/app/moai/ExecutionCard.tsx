@@ -130,7 +130,8 @@ export function ExecutionCard() {
             </p>
           )}
           <p className="mt-1 text-sm text-neutral-600">
-            Actions are mocked until contracts are wired.
+            Most actions are mocked. Link a deployed contract to enable onchain
+            flows.
           </p>
         </div>
 

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { shortEvmAddress } from "@/lib/evm";
 import { invitePath } from "@/lib/invite";
 import { isMemberActive, type MyMoai, readMyMoai } from "@/lib/moai";
 import { STORAGE_CHANGE_EVENT, type StorageChangeDetail } from "@/lib/storage";
@@ -9,13 +10,31 @@ import { ActiveStatusCard } from "./ActiveStatusCard";
 import { ContributionCard } from "./ContributionCard";
 import { ExecutionCard } from "./ExecutionCard";
 import { HistoryCard } from "./HistoryCard";
+import { OnchainCard } from "./OnchainCard";
 import { OrderCard } from "./OrderCard";
 import { PoolCard } from "./PoolCard";
 import { WithdrawCard } from "./WithdrawCard";
 
+type EnsResponse = {
+  name?: unknown;
+  avatar?: unknown;
+};
+
+function asEnsResponse(value: unknown): EnsResponse | null {
+  if (!value || typeof value !== "object") return null;
+  return value as EnsResponse;
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
 export function MyMoaiClient() {
   const [moai, setMoai] = useState<MyMoai | null>(null);
   const [ready, setReady] = useState(false);
+  const [ensByMemberId, setEnsByMemberId] = useState<
+    Record<string, { name: string | null; avatar: string | null }>
+  >({});
 
   const refresh = useCallback(() => {
     setMoai(readMyMoai());
@@ -43,6 +62,54 @@ export function MyMoaiClient() {
     if (typeof window === "undefined") return localInvitePath;
     return `${window.location.origin}${localInvitePath}`;
   }, [localInvitePath]);
+
+  const activeMembers = useMemo(() => {
+    return moai ? moai.members.filter(isMemberActive) : [];
+  }, [moai]);
+
+  const pastMembers = useMemo(() => {
+    return moai ? moai.members.filter((m) => !isMemberActive(m)) : [];
+  }, [moai]);
+
+  const ensTargets = useMemo(() => {
+    return activeMembers
+      .map((m) => ({ id: m.id, address: m.walletAddress }))
+      .filter((m): m is { id: string; address: string } => Boolean(m.address));
+  }, [activeMembers]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (ensTargets.length === 0) return;
+
+    Promise.all(
+      ensTargets.map(async (m) => {
+        try {
+          const res = await fetch(
+            `/api/ens?address=${encodeURIComponent(m.address)}`,
+          );
+          const json = (await res.json().catch(() => null)) as unknown;
+          const obj = asEnsResponse(json);
+          const name = asString(obj?.name);
+          const avatar = asString(obj?.avatar);
+          return { id: m.id, name, avatar };
+        } catch {
+          return { id: m.id, name: null, avatar: null };
+        }
+      }),
+    ).then((results) => {
+      if (cancelled) return;
+      setEnsByMemberId((prev) => {
+        const next = { ...prev };
+        for (const r of results)
+          next[r.id] = { name: r.name, avatar: r.avatar };
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ensTargets]);
 
   if (!ready) {
     return <p className="mt-10 text-sm text-neutral-600">Loading…</p>;
@@ -73,9 +140,6 @@ export function MyMoaiClient() {
       </>
     );
   }
-
-  const activeMembers = moai.members.filter(isMemberActive);
-  const pastMembers = moai.members.filter((m) => !isMemberActive(m));
 
   return (
     <>
@@ -111,6 +175,8 @@ export function MyMoaiClient() {
 
       <ExecutionCard />
 
+      <OnchainCard />
+
       <PoolCard moaiId={moai.id} />
 
       <div className="mt-10 rounded-xl border border-neutral-200 p-4">
@@ -141,10 +207,26 @@ export function MyMoaiClient() {
         <ul className="mt-3 space-y-2">
           {activeMembers.map((m) => (
             <li
-              className="flex items-center justify-between text-sm"
+              className="flex items-center justify-between gap-3 text-sm"
               key={m.id}
             >
-              <span className="text-neutral-900">{m.displayName}</span>
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="h-7 w-7 shrink-0 rounded-full border border-neutral-200 bg-neutral-50" />
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-neutral-900">
+                    {m.displayName}
+                  </p>
+                  {ensByMemberId[m.id]?.name ? (
+                    <p className="truncate text-xs text-neutral-600">
+                      {ensByMemberId[m.id]?.name}
+                    </p>
+                  ) : m.walletAddress ? (
+                    <p className="truncate text-xs text-neutral-600">
+                      {shortEvmAddress(m.walletAddress)}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
               <span className="text-neutral-600">{m.role}</span>
             </li>
           ))}
@@ -157,10 +239,12 @@ export function MyMoaiClient() {
             <ul className="mt-3 space-y-2">
               {pastMembers.map((m) => (
                 <li
-                  className="flex items-center justify-between text-sm"
+                  className="flex items-center justify-between gap-3 text-sm"
                   key={m.id}
                 >
-                  <span className="text-neutral-900">{m.displayName}</span>
+                  <span className="min-w-0 truncate text-neutral-900">
+                    {m.displayName}
+                  </span>
                   <span className="text-neutral-600">
                     {m.pastReason ?? "past"}
                   </span>

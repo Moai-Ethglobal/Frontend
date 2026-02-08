@@ -246,6 +246,7 @@ export type ExecuteEmergencyWithdrawalError =
   | "NOT_FOUND"
   | "NOT_EMERGENCY"
   | "NOT_PASSED"
+  | "INSUFFICIENT_RESERVE"
   | "ALREADY_EXECUTED"
   | "INVALID_EXECUTOR";
 

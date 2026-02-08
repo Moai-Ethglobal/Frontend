@@ -10,6 +10,7 @@ export type MoaiMember = {
   status?: MemberStatus;
   pastReason?: MemberPastReason;
   pastAt?: string;
+  walletAddress?: string;
 };
 
 export type MyMoai = {
@@ -21,6 +22,7 @@ export type MyMoai = {
   members: MoaiMember[];
 };
 
+import { isEvmAddress } from "./evm";
 import { readJson, writeJson } from "./storage";
 
 const STORAGE_KEY = "moai.myMoai.v1";
@@ -67,6 +69,7 @@ export function createMyMoai(input: {
         role: "creator",
         joinedAt: now,
         status: "active",
+        walletAddress: isEvmAddress(creatorId) ? creatorId : undefined,
       },
     ],
   };
@@ -131,6 +134,7 @@ export function joinMyMoaiByInviteCode(input: {
         role: "member",
         joinedAt: now,
         status: "active",
+        walletAddress: isEvmAddress(id) ? id : undefined,
       },
     ],
   };

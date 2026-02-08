@@ -8,6 +8,7 @@ import {
   markMemberPast,
   setMonthlyContributionUSDC,
 } from "./moai";
+import { emergencyReserveUSDC } from "./pool";
 import type { Proof } from "./proofs";
 import { uploadProof } from "./proofs";
 import type {
@@ -24,6 +25,7 @@ import {
   getRequestById,
   voteRequestById,
 } from "./requests";
+import { parseUSDC } from "./usdc";
 import type { RotationWithdrawal } from "./withdrawals";
 import { createRotationWithdrawal } from "./withdrawals";
 
@@ -111,6 +113,19 @@ export function executeEmergencyWithdrawalAction(input: {
 }):
   | { ok: true; request: EmergencyWithdrawalRequest }
   | { ok: false; error: ExecuteEmergencyWithdrawalError } {
+  const current = getRequestById(input.requestId);
+  if (
+    current &&
+    current.type === "emergency_withdrawal" &&
+    current.status === "passed" &&
+    !current.executedAt
+  ) {
+    const amount = parseUSDC(current.amountUSDC);
+    const reserve = emergencyReserveUSDC({ moaiId: current.moaiId });
+    if (amount > reserve) {
+      return { ok: false, error: "INSUFFICIENT_RESERVE" };
+    }
+  }
   return executeEmergencyWithdrawalById(input);
 }
 

@@ -4,10 +4,7 @@ import type { WidgetConfig } from "@lifi/widget";
 import { ChainType, LiFiWidget, WidgetSkeleton } from "@lifi/widget";
 import { useMemo } from "react";
 import { ClientOnly } from "@/components/ClientOnly";
-
-function isEvmAddress(value: string): boolean {
-  return /^0x[0-9a-fA-F]{40}$/.test(value);
-}
+import { isEvmAddress } from "@/lib/evm";
 
 const DEFAULT_TO_CHAIN = 8453;
 const ALLOWED_CHAINS = [1, 10, 137, 8453, 42161] as const;

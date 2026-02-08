@@ -212,11 +212,13 @@ export function RequestDetailClient({ requestId }: { requestId: string }) {
       const message =
         result.error === "NOT_PASSED"
           ? "This request has not passed."
-          : result.error === "ALREADY_EXECUTED"
-            ? "This request was already executed."
-            : result.error === "NOT_FOUND"
-              ? "Request not found."
-              : "Unable to execute.";
+          : result.error === "INSUFFICIENT_RESERVE"
+            ? "Not enough in the emergency reserve."
+            : result.error === "ALREADY_EXECUTED"
+              ? "This request was already executed."
+              : result.error === "NOT_FOUND"
+                ? "Request not found."
+                : "Unable to execute.";
       setExecError(message);
       setRequest(getRequestById(requestId));
       return;

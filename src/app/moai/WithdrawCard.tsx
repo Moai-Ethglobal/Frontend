@@ -5,10 +5,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { withdrawRotationAction } from "@/lib/actions";
 import type { ContributionPayment } from "@/lib/contributions";
 import { listContributionPaymentsByMoaiId } from "@/lib/contributions";
+import { splitMonthlyContributions } from "@/lib/economics";
 import { getMeeting } from "@/lib/meetings";
 import { isActiveMemberId, type MyMoai } from "@/lib/moai";
-import type { MoaiRequest } from "@/lib/requests";
-import { listRequestsByMoaiId } from "@/lib/requests";
 import { rotationNextMember } from "@/lib/rotation";
 import { readSession } from "@/lib/session";
 import { STORAGE_CHANGE_EVENT, type StorageChangeDetail } from "@/lib/storage";
@@ -17,17 +16,12 @@ import { sumUSDC } from "@/lib/usdc";
 import type { Withdrawal } from "@/lib/withdrawals";
 import { listWithdrawalsByMoaiId } from "@/lib/withdrawals";
 
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
 export function WithdrawCard({ moai }: { moai: MyMoai }) {
   const [ready, setReady] = useState(false);
   const [voterId, setVoterId] = useState<string | null>(null);
   const [month, setMonth] = useState<string | null>(null);
   const [checkedInAt, setCheckedInAt] = useState<string | null>(null);
   const [payments, setPayments] = useState<ContributionPayment[]>([]);
-  const [requests, setRequests] = useState<MoaiRequest[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,7 +33,6 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
     setVoterId(id);
     setMonth(m);
     setPayments(listContributionPaymentsByMoaiId(moai.id));
-    setRequests(listRequestsByMoaiId(moai.id));
     setWithdrawals(listWithdrawalsByMoaiId(moai.id));
 
     if (id) {
@@ -66,29 +59,6 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
     return () => window.removeEventListener(STORAGE_CHANGE_EVENT, onChanged);
   }, [refresh]);
 
-  const emergencyPaidOut = useMemo(() => {
-    const executed = requests.filter(
-      (r) => r.type === "emergency_withdrawal" && Boolean(r.executedAt),
-    );
-    return sumUSDC(
-      executed.map((r) =>
-        r.type === "emergency_withdrawal" ? r.amountUSDC : "0",
-      ),
-    );
-  }, [requests]);
-
-  const contributed = useMemo(() => {
-    return sumUSDC(payments.map((p) => p.amountUSDC));
-  }, [payments]);
-
-  const withdrawn = useMemo(() => {
-    return sumUSDC(withdrawals.map((w) => w.amountUSDC));
-  }, [withdrawals]);
-
-  const balance = useMemo(() => {
-    return round2(contributed - emergencyPaidOut - withdrawn);
-  }, [contributed, emergencyPaidOut, withdrawn]);
-
   const activeThisMonth = Boolean(checkedInAt);
   const memberActive = Boolean(voterId && isActiveMemberId(moai, voterId));
 
@@ -100,6 +70,29 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
   const isNext =
     Boolean(voterId) && Boolean(nextMember) && voterId === nextMember?.id;
 
+  const collectedThisMonth = useMemo(() => {
+    if (!month) return 0;
+    return sumUSDC(
+      payments.filter((p) => p.month === month).map((p) => p.amountUSDC),
+    );
+  }, [month, payments]);
+
+  const split = useMemo(() => {
+    return splitMonthlyContributions(collectedThisMonth);
+  }, [collectedThisMonth]);
+
+  const alreadyWithdrawnThisMonth = useMemo(() => {
+    if (!month) return false;
+    return withdrawals.some((w) => w.month === month);
+  }, [month, withdrawals]);
+
+  const available = useMemo(() => {
+    if (!month) return 0;
+    if (!isNext) return 0;
+    if (alreadyWithdrawnThisMonth) return 0;
+    return split.distributionUSDC;
+  }, [alreadyWithdrawnThisMonth, isNext, month, split.distributionUSDC]);
+
   const canWithdraw =
     ready &&
     Boolean(voterId) &&
@@ -107,7 +100,7 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
     memberActive &&
     activeThisMonth &&
     isNext &&
-    balance > 0;
+    available > 0;
 
   const fmt = useMemo(() => {
     return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
@@ -135,8 +128,12 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
       setError("Only the next member can withdraw (demo).");
       return;
     }
-    if (balance <= 0) {
-      setError("No balance available.");
+    if (alreadyWithdrawnThisMonth) {
+      setError("This month was already withdrawn.");
+      return;
+    }
+    if (available <= 0) {
+      setError("Nothing available this month.");
       return;
     }
 
@@ -144,7 +141,7 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
       moaiId: moai.id,
       month,
       voterId,
-      amountUSDC: balance.toFixed(2),
+      amountUSDC: available.toFixed(2),
     });
   };
 
@@ -164,7 +161,7 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
           <p className="mt-2 text-sm text-neutral-700">
             Available:{" "}
             <span className="font-medium text-neutral-900">
-              {fmt.format(balance)} USDC
+              {fmt.format(available)} USDC
             </span>
           </p>
           <p className="mt-1 text-sm text-neutral-600">
@@ -179,6 +176,19 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
                       : `next is ${nextMember?.displayName ?? "—"}`
                     : "check in required"
                 : "login required"}
+            </span>
+          </p>
+          <p className="mt-1 text-sm text-neutral-600">
+            This month collected:{" "}
+            <span className="font-medium text-neutral-900">
+              {fmt.format(collectedThisMonth)} USDC
+            </span>
+          </p>
+          <p className="mt-1 text-sm text-neutral-600">
+            Split:{" "}
+            <span className="font-medium text-neutral-900">
+              {fmt.format(split.distributionUSDC)} USDC to member ·{" "}
+              {fmt.format(split.reserveUSDC)} USDC to emergency
             </span>
           </p>
         </div>
