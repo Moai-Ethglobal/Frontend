@@ -66,3 +66,49 @@ export async function requestWalletCapabilities(input: {
     return null;
   }
 }
+
+export async function signMessage(input: {
+  account: string;
+  message: string;
+}): Promise<string | null> {
+  const provider = getWalletProvider();
+  if (!provider) return null;
+
+  const account = input.account.trim();
+  const message = input.message;
+  if (!account.length || !message.length) return null;
+
+  const tryRequest = async (params: unknown[]) => {
+    const result = await provider.request({
+      method: "personal_sign",
+      params,
+    });
+    return typeof result === "string" ? result : null;
+  };
+
+  try {
+    // MetaMask: [message, address]
+    const sig = await tryRequest([message, account]);
+    if (sig) return sig;
+  } catch {
+    // ignore
+  }
+
+  try {
+    // Some wallets: [address, message]
+    const sig = await tryRequest([account, message]);
+    if (sig) return sig;
+  } catch {
+    // ignore
+  }
+
+  try {
+    const result = await provider.request({
+      method: "eth_sign",
+      params: [account, message],
+    });
+    return typeof result === "string" ? result : null;
+  } catch {
+    return null;
+  }
+}

@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { payContributionAction } from "@/lib/actions";
 import type { ContributionPayment } from "@/lib/contributions";
 import { getContributionPayment } from "@/lib/contributions";
 import { isActiveMemberId, type MyMoai } from "@/lib/moai";
+import { contributeOnchain, readOnchainMoaiState } from "@/lib/onchainMoai";
 import { readSession } from "@/lib/session";
+import { STORAGE_CHANGE_EVENT, type StorageChangeDetail } from "@/lib/storage";
 import { monthKey } from "@/lib/time";
 
 export function ContributionCard({ moai }: { moai: MyMoai }) {
@@ -15,8 +17,13 @@ export function ContributionCard({ moai }: { moai: MyMoai }) {
   const [month, setMonth] = useState<string | null>(null);
   const [payment, setPayment] = useState<ContributionPayment | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [onchain, setOnchain] = useState<Awaited<
+    ReturnType<typeof readOnchainMoaiState>
+  > | null>(null);
+  const [onchainError, setOnchainError] = useState<string | null>(null);
+  const [txHashes, setTxHashes] = useState<string[]>([]);
 
-  useEffect(() => {
+  const refresh = useCallback(async () => {
     const session = readSession();
     const nextVoterId = session?.id ?? null;
     const nextMonth = monthKey(new Date());
@@ -32,8 +39,30 @@ export function ContributionCard({ moai }: { moai: MyMoai }) {
           })
         : null,
     );
+
+    const nextOnchain = await readOnchainMoaiState({ sessionId: nextVoterId });
+    setOnchain(nextOnchain);
     setReady(true);
   }, [moai.id]);
+
+  useEffect(() => {
+    void refresh();
+
+    const onChanged = (evt: Event) => {
+      const detail = (evt as CustomEvent<StorageChangeDetail>).detail;
+      if (!detail?.key) return;
+      if (
+        detail.key !== "moai.session.v1" &&
+        detail.key !== "moai.onchain.v1" &&
+        detail.key !== "moai.contributions.v1"
+      )
+        return;
+      void refresh();
+    };
+
+    window.addEventListener(STORAGE_CHANGE_EVENT, onChanged);
+    return () => window.removeEventListener(STORAGE_CHANGE_EVENT, onChanged);
+  }, [refresh]);
 
   const monthly = moai.monthlyContributionUSDC?.trim();
   const outstandingUSDC =
@@ -52,6 +81,7 @@ export function ContributionCard({ moai }: { moai: MyMoai }) {
 
   const onPay = () => {
     setError(null);
+    setTxHashes([]);
     if (!voterId) {
       setError("Login to pay.");
       return;
@@ -78,6 +108,22 @@ export function ContributionCard({ moai }: { moai: MyMoai }) {
       }),
     );
   };
+
+  const onPayOnchain = async () => {
+    setOnchainError(null);
+    setTxHashes([]);
+    const result = await contributeOnchain({ sessionId: voterId });
+    if (!result.ok) {
+      setOnchainError(result.error);
+      return;
+    }
+    setTxHashes([...result.hashes]);
+    void refresh();
+  };
+
+  const canPayOnchain = useMemo(() => {
+    return Boolean(onchain?.isMember && !onchain.paidThisMonth);
+  }, [onchain?.isMember, onchain?.paidThisMonth]);
 
   return (
     <div className="mt-10 rounded-xl border border-neutral-200 p-4">
@@ -112,15 +158,47 @@ export function ContributionCard({ moai }: { moai: MyMoai }) {
 
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-neutral-600">Stored locally for now.</p>
-        <button
-          className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          type="button"
-          disabled={!canPay}
-          onClick={onPay}
-        >
-          Pay (mock)
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <button
+            className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            type="button"
+            disabled={!canPay}
+            onClick={onPay}
+          >
+            Pay (mock)
+          </button>
+
+          <button
+            className="inline-flex items-center justify-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-50 disabled:opacity-50"
+            type="button"
+            disabled={!canPayOnchain}
+            onClick={() => void onPayOnchain()}
+          >
+            Pay onchain
+          </button>
+        </div>
       </div>
+
+      {onchain ? (
+        <div className="mt-4 rounded-lg bg-neutral-50 p-3 text-sm text-neutral-700">
+          <p className="text-xs font-medium text-neutral-700">Onchain status</p>
+          <p className="mt-2">
+            Contribution:{" "}
+            <span className="font-medium text-neutral-900">
+              {onchain.contributionAmountUSDC} USDC
+            </span>
+          </p>
+          <p className="mt-1">
+            Month:{" "}
+            <span className="font-medium text-neutral-900">
+              {onchain.currentMonth.toString()}
+            </span>{" "}
+            <span className="text-neutral-600">
+              ({onchain.paidThisMonth ? "paid" : "unpaid"})
+            </span>
+          </p>
+        </div>
+      ) : null}
 
       {payment ? (
         <p className="mt-3 text-sm text-neutral-600">
@@ -128,7 +206,20 @@ export function ContributionCard({ moai }: { moai: MyMoai }) {
         </p>
       ) : null}
 
+      {txHashes.length > 0 ? (
+        <div className="mt-3 text-xs text-neutral-600">
+          {txHashes.map((h) => (
+            <p className="font-mono" key={h}>
+              tx {h.slice(0, 10)}…{h.slice(-6)}
+            </p>
+          ))}
+        </div>
+      ) : null}
+
       {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+      {onchainError ? (
+        <p className="mt-3 text-sm text-red-600">{onchainError}</p>
+      ) : null}
     </div>
   );
 }

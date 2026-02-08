@@ -4,9 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ContributionPayment } from "@/lib/contributions";
 import { listContributionPaymentsByMoaiId } from "@/lib/contributions";
 import { splitMonthlyContributions } from "@/lib/economics";
+import { readOnchainMoaiState } from "@/lib/onchainMoai";
 import { poolBreakdown } from "@/lib/pool";
 import type { MoaiRequest } from "@/lib/requests";
 import { listRequestsByMoaiId } from "@/lib/requests";
+import { readSession } from "@/lib/session";
 import { STORAGE_CHANGE_EVENT, type StorageChangeDetail } from "@/lib/storage";
 import { monthKey } from "@/lib/time";
 import { sumUSDC } from "@/lib/usdc";
@@ -19,6 +21,9 @@ export function PoolCard({ moaiId }: { moaiId: string }) {
   const [payments, setPayments] = useState<ContributionPayment[]>([]);
   const [requests, setRequests] = useState<MoaiRequest[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [onchain, setOnchain] = useState<Awaited<
+    ReturnType<typeof readOnchainMoaiState>
+  > | null>(null);
 
   const refresh = useCallback(() => {
     setMonth(monthKey(new Date()));
@@ -41,6 +46,34 @@ export function PoolCard({ moaiId }: { moaiId: string }) {
     window.addEventListener(STORAGE_CHANGE_EVENT, onChanged);
     return () => window.removeEventListener(STORAGE_CHANGE_EVENT, onChanged);
   }, [refresh]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const session = readSession();
+      const next = await readOnchainMoaiState({
+        sessionId: session?.id ?? null,
+      });
+      if (cancelled) return;
+      setOnchain(next);
+    };
+
+    void load();
+
+    const onChanged = (evt: Event) => {
+      const detail = (evt as CustomEvent<StorageChangeDetail>).detail;
+      if (!detail?.key) return;
+      if (detail.key !== "moai.session.v1" && detail.key !== "moai.onchain.v1")
+        return;
+      void load();
+    };
+
+    window.addEventListener(STORAGE_CHANGE_EVENT, onChanged);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(STORAGE_CHANGE_EVENT, onChanged);
+    };
+  }, []);
 
   const executed = useMemo(() => {
     return requests.filter(
@@ -152,6 +185,24 @@ export function PoolCard({ moaiId }: { moaiId: string }) {
               {fmt.format(breakdown.emergencyReserveUSDC)} USDC
             </span>
           </p>
+        ) : null}
+
+        {onchain ? (
+          <div className="mt-4 rounded-lg bg-neutral-50 p-3 text-sm text-neutral-700">
+            <p className="text-xs font-medium text-neutral-700">Onchain</p>
+            <p className="mt-2">
+              Distribution pot:{" "}
+              <span className="font-medium text-neutral-900">
+                {onchain.distributionPotUSDC} USDC
+              </span>
+            </p>
+            <p className="mt-1">
+              Emergency reserve:{" "}
+              <span className="font-medium text-neutral-900">
+                {onchain.emergencyReserveUSDC} USDC
+              </span>
+            </p>
+          </div>
         ) : null}
 
         <p className="mt-3 text-sm text-neutral-600">

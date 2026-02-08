@@ -16,9 +16,20 @@ export type FileRecord = {
   createdAt: string;
 };
 
+export type NonceRecord = {
+  nonce: string;
+  address: string;
+  roomId: string;
+  message: string;
+  issuedAt: string;
+  expiresAt: string;
+  used: boolean;
+};
+
 type Store = {
   invites: Record<string, InviteRecord>;
   files: Record<string, FileRecord>;
+  nonces: Record<string, NonceRecord>;
 };
 
 function getGlobalStore(): Store {
@@ -26,7 +37,7 @@ function getGlobalStore(): Store {
     __moaiStore?: Store;
   };
   if (!g.__moaiStore) {
-    g.__moaiStore = { invites: {}, files: {} };
+    g.__moaiStore = { invites: {}, files: {}, nonces: {} };
   }
   return g.__moaiStore;
 }
@@ -49,4 +60,32 @@ export function putFile(record: FileRecord): void {
 export function getFile(id: string): FileRecord | null {
   const store = getGlobalStore();
   return store.files[id] ?? null;
+}
+
+export function putNonce(record: NonceRecord): void {
+  const store = getGlobalStore();
+  store.nonces[record.nonce] = record;
+}
+
+export function getNonce(nonce: string): NonceRecord | null {
+  const store = getGlobalStore();
+  return store.nonces[nonce] ?? null;
+}
+
+export function markNonceUsed(nonce: string): void {
+  const store = getGlobalStore();
+  const record = store.nonces[nonce];
+  if (!record) return;
+  record.used = true;
+  store.nonces[nonce] = record;
+}
+
+export function consumeNonce(nonce: string): NonceRecord | null {
+  const store = getGlobalStore();
+  const record = store.nonces[nonce] ?? null;
+  if (!record) return null;
+  if (record.used) return null;
+  record.used = true;
+  store.nonces[nonce] = record;
+  return record;
 }

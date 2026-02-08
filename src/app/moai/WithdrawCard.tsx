@@ -8,6 +8,7 @@ import { listContributionPaymentsByMoaiId } from "@/lib/contributions";
 import { splitMonthlyContributions } from "@/lib/economics";
 import { getMeeting } from "@/lib/meetings";
 import { isActiveMemberId, type MyMoai } from "@/lib/moai";
+import { readOnchainMoaiState, withdrawOnchain } from "@/lib/onchainMoai";
 import { rotationNextMember } from "@/lib/rotation";
 import { readSession } from "@/lib/session";
 import { STORAGE_CHANGE_EVENT, type StorageChangeDetail } from "@/lib/storage";
@@ -24,6 +25,10 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
   const [payments, setPayments] = useState<ContributionPayment[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [onchain, setOnchain] = useState<Awaited<
+    ReturnType<typeof readOnchainMoaiState>
+  > | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     const session = readSession();
@@ -44,6 +49,22 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
 
     setReady(true);
   }, [moai.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const id = voterId;
+    if (!id) {
+      setOnchain(null);
+      return;
+    }
+    readOnchainMoaiState({ sessionId: id }).then((s) => {
+      if (cancelled) return;
+      setOnchain(s);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [voterId]);
 
   useEffect(() => {
     refresh();
@@ -86,6 +107,12 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
     return withdrawals.some((w) => w.month === month);
   }, [month, withdrawals]);
 
+  const onchainAvailable = useMemo(() => {
+    if (!onchain) return 0;
+    const n = Number(onchain.withdrawableUSDC);
+    return Number.isFinite(n) ? n : 0;
+  }, [onchain]);
+
   const available = useMemo(() => {
     if (!month) return 0;
     if (!isNext) return 0;
@@ -93,14 +120,15 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
     return split.distributionUSDC;
   }, [alreadyWithdrawnThisMonth, isNext, month, split.distributionUSDC]);
 
+  const displayAvailable = onchain ? onchainAvailable : available;
+
   const canWithdraw =
     ready &&
     Boolean(voterId) &&
     Boolean(month) &&
     memberActive &&
     activeThisMonth &&
-    isNext &&
-    available > 0;
+    (onchain ? onchainAvailable > 0 : isNext && available > 0);
 
   const fmt = useMemo(() => {
     return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
@@ -108,6 +136,7 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
 
   const onWithdraw = () => {
     setError(null);
+    setTxHash(null);
     if (!voterId) {
       setError("Login to withdraw.");
       return;
@@ -124,6 +153,24 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
       setError("Check in for this month to withdraw.");
       return;
     }
+
+    if (onchain) {
+      if (onchainAvailable <= 0) {
+        setError("Nothing withdrawable onchain.");
+        return;
+      }
+      withdrawOnchain({ sessionId: voterId })
+        .then((r) => {
+          if (!r.ok) {
+            setError(r.error);
+            return;
+          }
+          setTxHash(r.hash);
+        })
+        .catch(() => setError("Transaction failed."));
+      return;
+    }
+
     if (!isNext) {
       setError("Only the next member can withdraw (demo).");
       return;
@@ -161,7 +208,7 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
           <p className="mt-2 text-sm text-neutral-700">
             Available:{" "}
             <span className="font-medium text-neutral-900">
-              {fmt.format(available)} USDC
+              {fmt.format(displayAvailable)} USDC
             </span>
           </p>
           <p className="mt-1 text-sm text-neutral-600">
@@ -171,9 +218,13 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
                 ? !memberActive
                   ? "member required"
                   : activeThisMonth
-                    ? isNext
-                      ? "yes"
-                      : `next is ${nextMember?.displayName ?? "—"}`
+                    ? onchain
+                      ? onchainAvailable > 0
+                        ? "yes"
+                        : "no"
+                      : isNext
+                        ? "yes"
+                        : `next is ${nextMember?.displayName ?? "—"}`
                     : "check in required"
                 : "login required"}
             </span>
@@ -218,9 +269,15 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
           disabled={!canWithdraw}
           onClick={onWithdraw}
         >
-          Withdraw (mock)
+          {onchain ? "Withdraw onchain" : "Withdraw (mock)"}
         </button>
       </div>
+
+      {txHash ? (
+        <p className="mt-3 font-mono text-xs text-neutral-600">
+          tx {txHash.slice(0, 10)}…{txHash.slice(-6)}
+        </p>
+      ) : null}
 
       {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
     </div>
