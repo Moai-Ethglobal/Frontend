@@ -851,7 +851,13 @@ export function OnchainCard() {
 
               <div className="mt-4 rounded-lg border border-neutral-200 bg-white p-3">
                 <p className="text-xs font-medium text-neutral-700">
-                  Emergency (onchain)
+                  Emergency request (onchain)
+                </p>
+                <p className="mt-1 text-xs text-neutral-600">
+                  Max per request: 15% of emergency reserve
+                  {state.emergencyReserveUSDC !== "0"
+                    ? ` (approx. ${(Number.parseFloat(state.emergencyReserveUSDC.replace(/,/g, "")) * 0.15).toFixed(2)} USDC)`
+                    : ""}
                 </p>
                 <div className="mt-2 grid gap-3 sm:grid-cols-2">
                   <label className="block">

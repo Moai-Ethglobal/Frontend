@@ -201,59 +201,45 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
   }
 
   return (
-    <div className="mt-10 rounded-xl border border-neutral-200 p-4">
+    <div className="rounded-xl border border-neutral-200 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold">Withdraw</h2>
-          <p className="mt-2 text-sm text-neutral-700">
-            Available:{" "}
-            <span className="font-medium text-neutral-900">
-              {fmt.format(displayAvailable)} USDC
-            </span>
+          <h2 className="text-base font-semibold">Withdraw</h2>
+          <p
+            className="mt-2 text-lg font-semibold text-neutral-900"
+            aria-live="polite"
+          >
+            {fmt.format(displayAvailable)} USDC available
           </p>
-          <p className="mt-1 text-sm text-neutral-600">
-            Eligible:{" "}
-            <span className="font-medium text-neutral-900">
-              {voterId
-                ? !memberActive
-                  ? "member required"
-                  : activeThisMonth
-                    ? onchain
-                      ? onchainAvailable > 0
-                        ? "yes"
-                        : "no"
-                      : isNext
-                        ? "yes"
-                        : `next is ${nextMember?.displayName ?? "—"}`
-                    : "check in required"
-                : "login required"}
-            </span>
-          </p>
-          <p className="mt-1 text-sm text-neutral-600">
-            This month collected:{" "}
-            <span className="font-medium text-neutral-900">
-              {fmt.format(collectedThisMonth)} USDC
-            </span>
-          </p>
-          <p className="mt-1 text-sm text-neutral-600">
-            Split:{" "}
-            <span className="font-medium text-neutral-900">
-              {fmt.format(split.distributionUSDC)} USDC to member ·{" "}
-              {fmt.format(split.reserveUSDC)} USDC to emergency
-            </span>
+          <p className="mt-1 text-base text-neutral-600">
+            {voterId
+              ? !memberActive
+                ? "You need to be a member to withdraw."
+                : activeThisMonth
+                  ? onchain
+                    ? onchainAvailable > 0
+                      ? "Ready to withdraw."
+                      : "Nothing to withdraw right now."
+                    : isNext
+                      ? "It is your turn to receive funds."
+                      : `Next in line: ${nextMember?.displayName ?? "—"}`
+                  : "Please check in at this month's meeting first."
+              : "Please sign in to withdraw."}
           </p>
         </div>
 
         {!voterId ? (
           <Link
-            className="text-sm font-medium text-neutral-900 hover:underline"
+            aria-label="Sign in to withdraw"
+            className="text-base font-medium text-neutral-900 hover:underline"
             href="/auth"
           >
-            Login
+            Sign in
           </Link>
         ) : !activeThisMonth ? (
           <Link
-            className="text-sm font-medium text-neutral-900 hover:underline"
+            aria-label="Go to meetings to check in"
+            className="text-base font-medium text-neutral-900 hover:underline"
             href="/moai/meetings"
           >
             Check in
@@ -261,17 +247,43 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
         ) : null}
       </div>
 
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-neutral-600">Stored locally for now.</p>
+      <div className="mt-4">
         <button
-          className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          aria-label="Withdraw available funds"
+          className="inline-flex min-h-[48px] items-center justify-center rounded-lg bg-neutral-900 px-5 py-3 text-base font-semibold text-white disabled:opacity-50"
           type="button"
           disabled={!canWithdraw}
           onClick={onWithdraw}
         >
-          {onchain ? "Withdraw onchain" : "Withdraw (mock)"}
+          Withdraw
         </button>
       </div>
+
+      <details className="mt-4">
+        <summary className="cursor-pointer text-sm text-neutral-600">
+          Details
+        </summary>
+        <div className="mt-2 space-y-1 text-sm text-neutral-600">
+          <p>
+            Collected this month:{" "}
+            <span className="font-medium text-neutral-900">
+              {fmt.format(collectedThisMonth)} USDC
+            </span>
+          </p>
+          <p>
+            70% to member:{" "}
+            <span className="font-medium text-neutral-900">
+              {fmt.format(split.distributionUSDC)} USDC
+            </span>
+          </p>
+          <p>
+            30% to emergency:{" "}
+            <span className="font-medium text-neutral-900">
+              {fmt.format(split.reserveUSDC)} USDC
+            </span>
+          </p>
+        </div>
+      </details>
 
       {txHash ? (
         <p className="mt-3 font-mono text-xs text-neutral-600">
@@ -279,7 +291,11 @@ export function WithdrawCard({ moai }: { moai: MyMoai }) {
         </p>
       ) : null}
 
-      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+      {error ? (
+        <p className="mt-3 text-base text-red-600" aria-live="assertive">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

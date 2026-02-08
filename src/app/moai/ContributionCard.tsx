@@ -126,57 +126,56 @@ export function ContributionCard({ moai }: { moai: MyMoai }) {
   }, [onchain?.isMember, onchain?.paidThisMonth]);
 
   return (
-    <div className="mt-10 rounded-xl border border-neutral-200 p-4">
+    <div className="rounded-xl border border-neutral-200 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold">Contribution</h2>
-          <p className="mt-2 text-sm text-neutral-700">
-            Monthly:{" "}
-            <span className="font-medium text-neutral-900">
+          <h2 className="text-base font-semibold">Monthly payment</h2>
+          <p className="mt-2 text-base text-neutral-700" aria-live="polite">
+            Amount:{" "}
+            <span className="font-semibold text-neutral-900">
               {monthly && monthly.length > 0 ? `${monthly} USDC` : "Not set"}
             </span>
           </p>
           {month ? (
-            <p className="mt-1 text-sm text-neutral-700">
-              This month ({month}):{" "}
-              <span className="font-medium text-neutral-900">
-                {payment ? "paid" : `outstanding ${outstandingUSDC} USDC`}
-              </span>
+            <p className="mt-1 text-base text-neutral-700" aria-live="polite">
+              {payment
+                ? "This month: paid"
+                : `Due this month: ${outstandingUSDC} USDC`}
             </p>
           ) : null}
         </div>
 
         {!voterId ? (
           <Link
-            className="text-sm font-medium text-neutral-900 hover:underline"
+            aria-label="Sign in to pay"
+            className="text-base font-medium text-neutral-900 hover:underline"
             href="/auth"
           >
-            Login
+            Sign in
           </Link>
         ) : null}
       </div>
 
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-neutral-600">Stored locally for now.</p>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <button
-            className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            type="button"
-            disabled={!canPay}
-            onClick={onPay}
-          >
-            Pay (mock)
-          </button>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <button
+          aria-label="Pay monthly contribution (local demo)"
+          className="inline-flex min-h-[48px] items-center justify-center rounded-lg bg-neutral-900 px-5 py-3 text-base font-semibold text-white disabled:opacity-50"
+          type="button"
+          disabled={!canPay}
+          onClick={onPay}
+        >
+          Pay now
+        </button>
 
-          <button
-            className="inline-flex items-center justify-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-50 disabled:opacity-50"
-            type="button"
-            disabled={!canPayOnchain}
-            onClick={() => void onPayOnchain()}
-          >
-            Pay onchain
-          </button>
-        </div>
+        <button
+          aria-label="Pay monthly contribution on the blockchain"
+          className="inline-flex min-h-[48px] items-center justify-center rounded-lg border border-neutral-200 px-5 py-3 text-base font-medium text-neutral-900 hover:bg-neutral-50 disabled:opacity-50"
+          type="button"
+          disabled={!canPayOnchain}
+          onClick={() => void onPayOnchain()}
+        >
+          Pay onchain
+        </button>
       </div>
 
       {onchain ? (
