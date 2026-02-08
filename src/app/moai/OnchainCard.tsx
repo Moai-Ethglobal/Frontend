@@ -687,9 +687,9 @@ export function OnchainCard() {
 
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <p>
-                  Distribution pot:{" "}
+                  Available distribution:{" "}
                   <span className="font-medium text-neutral-900">
-                    {state.distributionPotUSDC} USDC
+                    {state.availableDistributionUSDC} USDC
                   </span>
                 </p>
                 <p>
@@ -724,11 +724,7 @@ export function OnchainCard() {
                   {state.withdrawableUSDC} USDC
                 </span>{" "}
                 <span className="text-neutral-600">
-                  ({state.withdrawReason}
-                  {state.withdrawReason === "round_robin"
-                    ? ` · month ${state.withdrawRefId}`
-                    : ""}
-                  )
+                  ({state.withdrawReason})
                 </span>
               </p>
 
@@ -896,7 +892,7 @@ export function OnchainCard() {
                         {emergencyInfo.approvalCount.toString()}
                       </span>{" "}
                       <span className="text-neutral-600">
-                        ({emergencyInfo.approved ? "approved" : "open"})
+                        ({emergencyInfo.executed ? "executed" : "open"})
                       </span>
                     </p>
                   </div>

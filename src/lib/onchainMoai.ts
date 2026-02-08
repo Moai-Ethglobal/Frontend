@@ -53,22 +53,11 @@ const EMERGENCY_REQUESTED_EVENT_ABI = [
   },
 ] as const;
 
-const REMOVAL_PROPOSED_EVENT_ABI = [
-  {
-    type: "event",
-    name: "RemovalProposed",
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "requestId", type: "uint256" },
-      { indexed: true, name: "member", type: "address" },
-    ],
-  },
-] as const;
-
 export type OnchainMoaiState = {
   moaiAddress: Address;
   chainId: number | null;
   account: Address;
+  moaiName: string;
   isMember: boolean;
   contributionAmountUSDC: string;
   currentMonth: bigint;
@@ -76,11 +65,16 @@ export type OnchainMoaiState = {
   outstandingUSDC: string;
   isDissolved: boolean;
   dissolutionVotes: bigint;
-  distributionPotUSDC: string;
+  dissolutionShareUSDC: string;
+  activeMemberCount: bigint;
+  currentRecipient: Address | null;
+  nextDistributionDate: bigint;
+  pendingDistributionUSDC: string;
+  approvedEmergencyUSDC: string;
   emergencyReserveUSDC: string;
+  availableDistributionUSDC: string;
   withdrawableUSDC: string;
-  withdrawReason: "none" | "round_robin" | "emergency";
-  withdrawRefId: bigint;
+  withdrawReason: "none" | "round_robin" | "emergency" | "dissolution";
 };
 
 function formatUSDC(units: bigint): string {
@@ -92,12 +86,6 @@ function formatUSDC(units: bigint): string {
 
 function asBigInt(value: unknown): bigint {
   return typeof value === "bigint" ? value : 0n;
-}
-
-function asUintNumber(value: unknown): number {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "bigint") return Number(value);
-  return 0;
 }
 
 function asBoolean(value: unknown): boolean {
@@ -146,6 +134,55 @@ export function getOnchainMoaiAddress(): Address | null {
   return cfg.moaiAddress as Address;
 }
 
+async function getPublicClient(resolved: ResolvedExecution) {
+  if (resolved.kind === "wallet") {
+    const provider = getWalletProvider();
+    if (!provider) return null;
+    return createPublicClient({ transport: custom(provider) });
+  }
+  const aa = await getAaClients({ identityId: resolved.identityId });
+  return aa?.publicClient ?? null;
+}
+
+function parseMemberInfo(value: unknown): {
+  isActive: boolean;
+  joinMonth: bigint;
+  totalContributed: bigint;
+  approvedEmergency: bigint;
+  votedDissolution: boolean;
+  withdrawnDissolution: boolean;
+} {
+  if (!Array.isArray(value) && (!value || typeof value !== "object")) {
+    return {
+      isActive: false,
+      joinMonth: 0n,
+      totalContributed: 0n,
+      approvedEmergency: 0n,
+      votedDissolution: false,
+      withdrawnDissolution: false,
+    };
+  }
+  const v = value as Record<string, unknown>;
+  return {
+    isActive: asBoolean(
+      v.isActive ?? (Array.isArray(value) ? value[0] : false),
+    ),
+    joinMonth: asBigInt(v.joinMonth ?? (Array.isArray(value) ? value[2] : 0n)),
+    totalContributed: asBigInt(
+      v.totalContributed ?? (Array.isArray(value) ? value[3] : 0n),
+    ),
+    approvedEmergency: asBigInt(
+      v.approvedEmergency ?? (Array.isArray(value) ? value[4] : 0n),
+    ),
+    votedDissolution: asBoolean(
+      v.votedDissolution ?? (Array.isArray(value) ? value[5] : false),
+    ),
+    withdrawnDissolution: asBoolean(
+      v.withdrawnDissolution ?? (Array.isArray(value) ? value[6] : false),
+    ),
+  };
+}
+
 export async function readOnchainMoaiState(input: {
   sessionId: string | null;
 }): Promise<OnchainMoaiState | null> {
@@ -155,30 +192,32 @@ export async function readOnchainMoaiState(input: {
   const resolved = await resolveExecution(input.sessionId);
   if (!resolved) return null;
   const account = resolved.account;
-
   const moaiAddress = cfg.moaiAddress as Address;
 
-  const publicClient =
-    resolved.kind === "wallet"
-      ? (() => {
-          const provider = getWalletProvider();
-          if (!provider) return null;
-          return createPublicClient({ transport: custom(provider) });
-        })()
-      : ((await getAaClients({ identityId: resolved.identityId }))
-          ?.publicClient ?? null);
+  const publicClient = await getPublicClient(resolved);
   if (!publicClient) return null;
 
   const chainId = await publicClient.getChainId().catch(() => null);
-  const member = await publicClient
+
+  const moaiName = await publicClient
     .readContract({
       address: moaiAddress,
       abi: MOAI_ABI,
-      functionName: "isMember",
+      functionName: "name",
+      args: [],
+    })
+    .then((v) => (typeof v === "string" ? v : ""))
+    .catch(() => "");
+
+  const rawMemberInfo = await publicClient
+    .readContract({
+      address: moaiAddress,
+      abi: MOAI_ABI,
+      functionName: "memberInfo",
       args: [account],
     })
-    .then((v) => Boolean(v))
-    .catch(() => false);
+    .catch(() => null);
+  const mi = parseMemberInfo(rawMemberInfo);
 
   const contributionAmount = await publicClient
     .readContract({
@@ -204,7 +243,7 @@ export async function readOnchainMoaiState(input: {
     .readContract({
       address: moaiAddress,
       abi: MOAI_ABI,
-      functionName: "paidThisMonth",
+      functionName: "hasPaidThisMonth",
       args: [account],
     })
     .then(asBoolean)
@@ -214,7 +253,7 @@ export async function readOnchainMoaiState(input: {
     .readContract({
       address: moaiAddress,
       abi: MOAI_ABI,
-      functionName: "outstandingAmount",
+      functionName: "getOutstanding",
       args: [account],
     })
     .then(asBigInt)
@@ -240,56 +279,114 @@ export async function readOnchainMoaiState(input: {
     .then(asBigInt)
     .catch(() => 0n);
 
-  const reserve = await publicClient
+  const dissolutionShare = await publicClient
     .readContract({
       address: moaiAddress,
       abi: MOAI_ABI,
-      functionName: "getReserveBalances",
+      functionName: "dissolutionSharePerMember",
       args: [],
     })
-    .then((v) => (Array.isArray(v) ? v : []))
-    .catch(() => []);
+    .then(asBigInt)
+    .catch(() => 0n);
 
-  const withdrawable = await publicClient
+  const activeMemberCount = await publicClient
     .readContract({
       address: moaiAddress,
       abi: MOAI_ABI,
-      functionName: "getWithdrawable",
+      functionName: "getMemberCount",
+      args: [],
+    })
+    .then(asBigInt)
+    .catch(() => 0n);
+
+  const currentRecipientRaw = await publicClient
+    .readContract({
+      address: moaiAddress,
+      abi: MOAI_ABI,
+      functionName: "getCurrentRecipient",
+      args: [],
+    })
+    .then((v) => (typeof v === "string" ? v : ""))
+    .catch(() => "");
+  const currentRecipient = isEvmAddress(currentRecipientRaw)
+    ? (currentRecipientRaw as Address)
+    : null;
+
+  const nextDistributionDate = await publicClient
+    .readContract({
+      address: moaiAddress,
+      abi: MOAI_ABI,
+      functionName: "getNextDistributionDate",
+      args: [],
+    })
+    .then(asBigInt)
+    .catch(() => 0n);
+
+  const pendingDistribution = await publicClient
+    .readContract({
+      address: moaiAddress,
+      abi: MOAI_ABI,
+      functionName: "getPendingDistribution",
       args: [account],
     })
-    .then((v) => (Array.isArray(v) ? v : []))
-    .catch(() => []);
+    .then(asBigInt)
+    .catch(() => 0n);
 
-  const distributionPot = asBigInt(reserve[0]);
-  const emergencyReserve = asBigInt(reserve[1]);
+  const emergencyReserve = await publicClient
+    .readContract({
+      address: moaiAddress,
+      abi: MOAI_ABI,
+      functionName: "getEmergencyReserve",
+      args: [],
+    })
+    .then(asBigInt)
+    .catch(() => 0n);
 
-  const withdrawAmount = asBigInt(withdrawable[0]);
-  const withdrawReasonCode = asUintNumber(withdrawable[1]);
-  const withdrawRefId = asBigInt(withdrawable[2]);
+  const availableDistribution = await publicClient
+    .readContract({
+      address: moaiAddress,
+      abi: MOAI_ABI,
+      functionName: "getAvailableDistribution",
+      args: [],
+    })
+    .then(asBigInt)
+    .catch(() => 0n);
 
-  const withdrawReason: OnchainMoaiState["withdrawReason"] =
-    withdrawReasonCode === 1
-      ? "round_robin"
-      : withdrawReasonCode === 2
-        ? "emergency"
-        : "none";
+  let withdrawableAmount = 0n;
+  let withdrawReason: OnchainMoaiState["withdrawReason"] = "none";
+  if (pendingDistribution > 0n) {
+    withdrawableAmount = pendingDistribution;
+    withdrawReason = "round_robin";
+  } else if (mi.approvedEmergency > 0n) {
+    withdrawableAmount = mi.approvedEmergency;
+    withdrawReason = "emergency";
+  } else if (isDissolved && !mi.withdrawnDissolution && dissolutionShare > 0n) {
+    withdrawableAmount = dissolutionShare;
+    withdrawReason = "dissolution";
+  }
 
   return {
     moaiAddress,
     chainId,
     account,
-    isMember: member,
+    moaiName,
+    isMember: mi.isActive,
     contributionAmountUSDC: formatUSDC(contributionAmount),
     currentMonth,
     paidThisMonth,
     outstandingUSDC: formatUSDC(outstanding),
     isDissolved,
     dissolutionVotes,
-    distributionPotUSDC: formatUSDC(distributionPot),
+    dissolutionShareUSDC: formatUSDC(dissolutionShare),
+    activeMemberCount,
+    currentRecipient,
+    nextDistributionDate,
+    pendingDistributionUSDC: formatUSDC(pendingDistribution),
+    approvedEmergencyUSDC: formatUSDC(mi.approvedEmergency),
     emergencyReserveUSDC: formatUSDC(emergencyReserve),
-    withdrawableUSDC: formatUSDC(withdrawAmount),
+    availableDistributionUSDC: formatUSDC(availableDistribution),
+    withdrawableUSDC: formatUSDC(withdrawableAmount),
     withdrawReason,
-    withdrawRefId,
   };
 }
 
@@ -307,10 +404,8 @@ export async function joinOnchain(input: {
     const provider = getWalletProvider();
     if (!provider)
       return { ok: false, error: "Wallet provider not available." };
-
     const publicClient = createPublicClient({ transport: custom(provider) });
     const walletClient = createWalletClient({ transport: custom(provider) });
-
     try {
       const { request } = await publicClient.simulateContract({
         address: moaiAddress,
@@ -328,7 +423,6 @@ export async function joinOnchain(input: {
 
   const aa = await getAaClients({ identityId: resolved.identityId });
   if (!aa) return { ok: false, error: "AA config not set." };
-
   try {
     const moai = getContract({
       address: moaiAddress,
@@ -349,17 +443,14 @@ export async function contributeOnchain(input: {
 > {
   const cfg = readOnchainMoaiConfig();
   if (!cfg) return { ok: false, error: "Onchain config not set." };
-
   const resolved = await resolveExecution(input.sessionId);
   if (!resolved) return { ok: false, error: "Login to contribute." };
-
   const moaiAddress = cfg.moaiAddress as Address;
 
   if (resolved.kind === "wallet") {
     const provider = getWalletProvider();
     if (!provider)
       return { ok: false, error: "Wallet provider not available." };
-
     const publicClient = createPublicClient({ transport: custom(provider) });
     const walletClient = createWalletClient({
       transport: custom(provider),
@@ -406,7 +497,6 @@ export async function contributeOnchain(input: {
       functionName: string;
       args: readonly unknown[];
     }[] = [];
-
     if (allowance < amount) {
       calls.push({
         to: usdcAddress,
@@ -415,7 +505,6 @@ export async function contributeOnchain(input: {
         args: [moaiAddress, amount],
       });
     }
-
     calls.push({
       to: moaiAddress,
       abi: MOAI_ABI,
@@ -429,12 +518,9 @@ export async function contributeOnchain(input: {
         calls,
         experimental_fallback: true,
       });
-
       const status = await walletClient.waitForCallsStatus({ id });
-      if (status.status !== "success") {
+      if (status.status !== "success")
         return { ok: false, error: "Transaction failed." };
-      }
-
       const hashes = (status.receipts ?? [])
         .map((r) =>
           r && typeof r === "object"
@@ -443,7 +529,6 @@ export async function contributeOnchain(input: {
         )
         .map(asTxHash)
         .filter((x): x is `0x${string}` => Boolean(x));
-
       return { ok: true, hashes };
     } catch {
       return { ok: false, error: "Transaction failed." };
@@ -488,7 +573,6 @@ export async function contributeOnchain(input: {
     .catch(() => 0n);
 
   const hashes: `0x${string}`[] = [];
-
   try {
     const usdc = getContract({
       address: usdcAddress,
@@ -500,7 +584,6 @@ export async function contributeOnchain(input: {
       abi: MOAI_ABI,
       client: { public: aa.publicClient, wallet: aa.smartAccountClient },
     });
-
     if (allowance < amount) {
       hashes.push(
         await usdc.write.approve([moaiAddress, amount], {
@@ -509,7 +592,6 @@ export async function contributeOnchain(input: {
         }),
       );
     }
-
     hashes.push(await moai.write.contribute());
     return { ok: true, hashes };
   } catch {
@@ -522,20 +604,16 @@ export async function distributeMonthOnchain(input: {
 }): Promise<{ ok: true; hash: `0x${string}` } | { ok: false; error: string }> {
   const cfg = readOnchainMoaiConfig();
   if (!cfg) return { ok: false, error: "Onchain config not set." };
-
   const resolved = await resolveExecution(input.sessionId);
   if (!resolved) return { ok: false, error: "Login to distribute." };
-
   const moaiAddress = cfg.moaiAddress as Address;
 
   if (resolved.kind === "wallet") {
     const provider = getWalletProvider();
     if (!provider)
       return { ok: false, error: "Wallet provider not available." };
-
     const publicClient = createPublicClient({ transport: custom(provider) });
     const walletClient = createWalletClient({ transport: custom(provider) });
-
     try {
       const { request } = await publicClient.simulateContract({
         address: moaiAddress,
@@ -553,7 +631,6 @@ export async function distributeMonthOnchain(input: {
 
   const aa = await getAaClients({ identityId: resolved.identityId });
   if (!aa) return { ok: false, error: "AA config not set." };
-
   try {
     const moai = getContract({
       address: moaiAddress,
@@ -572,7 +649,7 @@ export type OnchainEmergencyRequest = {
   beneficiary: Address;
   amountUSDC: string;
   approvalCount: bigint;
-  approved: boolean;
+  executed: boolean;
 };
 
 export async function readEmergencyRequestOnchain(input: {
@@ -581,27 +658,17 @@ export async function readEmergencyRequestOnchain(input: {
 }): Promise<OnchainEmergencyRequest | null> {
   const cfg = readOnchainMoaiConfig();
   if (!cfg) return null;
-
   const moaiAddress = cfg.moaiAddress as Address;
   const resolved = await resolveExecution(input.sessionId);
   if (!resolved) return null;
-
-  const publicClient =
-    resolved.kind === "wallet"
-      ? (() => {
-          const provider = getWalletProvider();
-          if (!provider) return null;
-          return createPublicClient({ transport: custom(provider) });
-        })()
-      : ((await getAaClients({ identityId: resolved.identityId }))
-          ?.publicClient ?? null);
+  const publicClient = await getPublicClient(resolved);
   if (!publicClient) return null;
 
   const value = await publicClient
     .readContract({
       address: moaiAddress,
       abi: MOAI_ABI,
-      functionName: "getEmergencyRequest",
+      functionName: "emergencyRequests",
       args: [input.requestId],
     })
     .then((v) => (Array.isArray(v) ? v : []))
@@ -610,18 +677,17 @@ export async function readEmergencyRequestOnchain(input: {
   const beneficiaryRaw = value[0];
   const amount = asBigInt(value[1]);
   const approvalCount = asBigInt(value[2]);
-  const approved = asBoolean(value[3]);
+  const executed = asBoolean(value[3]);
 
-  if (typeof beneficiaryRaw !== "string" || !isEvmAddress(beneficiaryRaw)) {
+  if (typeof beneficiaryRaw !== "string" || !isEvmAddress(beneficiaryRaw))
     return null;
-  }
 
   return {
     requestId: input.requestId,
     beneficiary: beneficiaryRaw as Address,
     amountUSDC: formatUSDC(amount),
     approvalCount,
-    approved,
+    executed,
   };
 }
 
@@ -634,20 +700,16 @@ export async function requestEmergencyOnchain(input: {
 > {
   const cfg = readOnchainMoaiConfig();
   if (!cfg) return { ok: false, error: "Onchain config not set." };
-
   const resolved = await resolveExecution(input.sessionId);
   if (!resolved) return { ok: false, error: "Login to request emergency." };
-
   const amountUnits = parseUSDCToUnits(input.amountUSDC);
   if (!amountUnits) return { ok: false, error: "Invalid amount." };
-
   const moaiAddress = cfg.moaiAddress as Address;
 
   if (resolved.kind === "wallet") {
     const provider = getWalletProvider();
     if (!provider)
       return { ok: false, error: "Wallet provider not available." };
-
     const publicClient = createPublicClient({ transport: custom(provider) });
     const walletClient = createWalletClient({ transport: custom(provider) });
 
@@ -660,7 +722,6 @@ export async function requestEmergencyOnchain(input: {
       })
       .then(asBigInt)
       .catch(() => 0n);
-
     try {
       const { request } = await publicClient.simulateContract({
         address: moaiAddress,
@@ -669,9 +730,7 @@ export async function requestEmergencyOnchain(input: {
         args: [amountUnits],
         account: resolved.account,
       });
-
       const hash = await walletClient.writeContract(request);
-
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       let requestId = before;
       try {
@@ -682,9 +741,8 @@ export async function requestEmergencyOnchain(input: {
         });
         if (parsed.length > 0) requestId = parsed[0].args.requestId;
       } catch {
-        // ignore
+        /* ignore */
       }
-
       return { ok: true, hash, requestId };
     } catch {
       return { ok: false, error: "Transaction failed." };
@@ -693,7 +751,6 @@ export async function requestEmergencyOnchain(input: {
 
   const aa = await getAaClients({ identityId: resolved.identityId });
   if (!aa) return { ok: false, error: "AA config not set." };
-
   const before = await aa.publicClient
     .readContract({
       address: moaiAddress,
@@ -703,17 +760,14 @@ export async function requestEmergencyOnchain(input: {
     })
     .then(asBigInt)
     .catch(() => 0n);
-
   try {
     const moai = getContract({
       address: moaiAddress,
       abi: MOAI_ABI,
       client: { public: aa.publicClient, wallet: aa.smartAccountClient },
     });
-
     const hash = await moai.write.requestEmergency([amountUnits]);
     const receipt = await aa.publicClient.waitForTransactionReceipt({ hash });
-
     let requestId = before;
     try {
       const parsed = parseEventLogs({
@@ -723,9 +777,8 @@ export async function requestEmergencyOnchain(input: {
       });
       if (parsed.length > 0) requestId = parsed[0].args.requestId;
     } catch {
-      // ignore
+      /* ignore */
     }
-
     return { ok: true, hash, requestId };
   } catch {
     return { ok: false, error: "Transaction failed." };
@@ -739,20 +792,16 @@ export async function voteEmergencyOnchain(input: {
 }): Promise<{ ok: true; hash: `0x${string}` } | { ok: false; error: string }> {
   const cfg = readOnchainMoaiConfig();
   if (!cfg) return { ok: false, error: "Onchain config not set." };
-
   const resolved = await resolveExecution(input.sessionId);
   if (!resolved) return { ok: false, error: "Login to vote." };
-
   const moaiAddress = cfg.moaiAddress as Address;
 
   if (resolved.kind === "wallet") {
     const provider = getWalletProvider();
     if (!provider)
       return { ok: false, error: "Wallet provider not available." };
-
     const publicClient = createPublicClient({ transport: custom(provider) });
     const walletClient = createWalletClient({ transport: custom(provider) });
-
     try {
       const { request } = await publicClient.simulateContract({
         address: moaiAddress,
@@ -770,7 +819,6 @@ export async function voteEmergencyOnchain(input: {
 
   const aa = await getAaClients({ identityId: resolved.identityId });
   if (!aa) return { ok: false, error: "AA config not set." };
-
   try {
     const moai = getContract({
       address: moaiAddress,
@@ -792,111 +840,43 @@ export async function withdrawOnchain(input: {
 }): Promise<{ ok: true; hash: `0x${string}` } | { ok: false; error: string }> {
   const cfg = readOnchainMoaiConfig();
   if (!cfg) return { ok: false, error: "Onchain config not set." };
-
   const resolved = await resolveExecution(input.sessionId);
   if (!resolved) return { ok: false, error: "Login to withdraw." };
-
   const moaiAddress = cfg.moaiAddress as Address;
 
   if (resolved.kind === "wallet") {
     const provider = getWalletProvider();
     if (!provider)
       return { ok: false, error: "Wallet provider not available." };
-
-    const publicClient = createPublicClient({
-      transport: custom(provider),
-    });
-
-    const walletClient = createWalletClient({
-      transport: custom(provider),
-    });
-
-    const withdrawable = await publicClient
-      .readContract({
+    const publicClient = createPublicClient({ transport: custom(provider) });
+    const walletClient = createWalletClient({ transport: custom(provider) });
+    try {
+      const { request } = await publicClient.simulateContract({
         address: moaiAddress,
         abi: MOAI_ABI,
-        functionName: "getWithdrawable",
-        args: [resolved.account],
-      })
-      .then((v) => (Array.isArray(v) ? v : []))
-      .catch(() => []);
-
-    const amount = asBigInt(withdrawable[0]);
-    const reason = asUintNumber(withdrawable[1]);
-    const refId = asBigInt(withdrawable[2]);
-
-    if (amount <= 0n) return { ok: false, error: "Nothing to withdraw." };
-
-    try {
-      if (reason === 2) {
-        const { request } = await publicClient.simulateContract({
-          address: moaiAddress,
-          abi: MOAI_ABI,
-          functionName: "withdrawEmergency",
-          args: [],
-          account: resolved.account,
-        });
-        const hash = await walletClient.writeContract(request);
-        return { ok: true, hash };
-      }
-
-      if (reason === 1) {
-        const { request } = await publicClient.simulateContract({
-          address: moaiAddress,
-          abi: MOAI_ABI,
-          functionName: "withdrawRoundRobin",
-          args: [refId],
-          account: resolved.account,
-        });
-        const hash = await walletClient.writeContract(request);
-        return { ok: true, hash };
-      }
-
-      return { ok: false, error: "No withdrawable balance." };
+        functionName: "withdraw",
+        args: [],
+        account: resolved.account,
+      });
+      const hash = await walletClient.writeContract(request);
+      return { ok: true, hash };
     } catch {
-      return { ok: false, error: "Transaction failed." };
+      return { ok: false, error: "Nothing to withdraw or transaction failed." };
     }
   }
 
   const aa = await getAaClients({ identityId: resolved.identityId });
   if (!aa) return { ok: false, error: "AA config not set." };
-
-  const withdrawable = await aa.publicClient
-    .readContract({
-      address: moaiAddress,
-      abi: MOAI_ABI,
-      functionName: "getWithdrawable",
-      args: [aa.smartAccountAddress],
-    })
-    .then((v) => (Array.isArray(v) ? v : []))
-    .catch(() => []);
-
-  const amount = asBigInt(withdrawable[0]);
-  const reason = asUintNumber(withdrawable[1]);
-  const refId = asBigInt(withdrawable[2]);
-
-  if (amount <= 0n) return { ok: false, error: "Nothing to withdraw." };
-
   try {
     const moai = getContract({
       address: moaiAddress,
       abi: MOAI_ABI,
       client: { public: aa.publicClient, wallet: aa.smartAccountClient },
     });
-
-    if (reason === 2) {
-      const hash = await moai.write.withdrawEmergency();
-      return { ok: true, hash };
-    }
-
-    if (reason === 1) {
-      const hash = await moai.write.withdrawRoundRobin([refId]);
-      return { ok: true, hash };
-    }
-
-    return { ok: false, error: "No withdrawable balance." };
+    const hash = await moai.write.withdraw();
+    return { ok: true, hash };
   } catch {
-    return { ok: false, error: "Transaction failed." };
+    return { ok: false, error: "Nothing to withdraw or transaction failed." };
   }
 }
 
@@ -908,22 +888,18 @@ export async function payOutstandingOnchain(input: {
 > {
   const cfg = readOnchainMoaiConfig();
   if (!cfg) return { ok: false, error: "Onchain config not set." };
-
   const resolved = await resolveExecution(input.sessionId);
   if (!resolved) return { ok: false, error: "Login to pay outstanding." };
-
   const amountLabel = input.amountUSDC.trim().toLowerCase();
   const useAll = amountLabel === "all" || amountLabel === "max";
   const amountUnits = useAll ? null : parseUSDCToUnits(input.amountUSDC);
   if (!useAll && !amountUnits) return { ok: false, error: "Invalid amount." };
-
   const moaiAddress = cfg.moaiAddress as Address;
 
   if (resolved.kind === "wallet") {
     const provider = getWalletProvider();
     if (!provider)
       return { ok: false, error: "Wallet provider not available." };
-
     const publicClient = createPublicClient({ transport: custom(provider) });
     const walletClient = createWalletClient({
       transport: custom(provider),
@@ -946,7 +922,7 @@ export async function payOutstandingOnchain(input: {
       .readContract({
         address: moaiAddress,
         abi: MOAI_ABI,
-        functionName: "outstandingAmount",
+        functionName: "getOutstanding",
         args: [resolved.account],
       })
       .then(asBigInt)
@@ -973,7 +949,6 @@ export async function payOutstandingOnchain(input: {
       functionName: string;
       args: readonly unknown[];
     }[] = [];
-
     if (allowance < amountToPay) {
       calls.push({
         to: usdcAddress,
@@ -982,7 +957,6 @@ export async function payOutstandingOnchain(input: {
         args: [moaiAddress, amountToPay],
       });
     }
-
     calls.push({
       to: moaiAddress,
       abi: MOAI_ABI,
@@ -996,12 +970,9 @@ export async function payOutstandingOnchain(input: {
         calls,
         experimental_fallback: true,
       });
-
       const status = await walletClient.waitForCallsStatus({ id });
-      if (status.status !== "success") {
+      if (status.status !== "success")
         return { ok: false, error: "Transaction failed." };
-      }
-
       const hashes = (status.receipts ?? [])
         .map((r) =>
           r && typeof r === "object"
@@ -1010,7 +981,6 @@ export async function payOutstandingOnchain(input: {
         )
         .map(asTxHash)
         .filter((x): x is `0x${string}` => Boolean(x));
-
       return { ok: true, hashes };
     } catch {
       return { ok: false, error: "Transaction failed." };
@@ -1037,7 +1007,7 @@ export async function payOutstandingOnchain(input: {
     .readContract({
       address: moaiAddress,
       abi: MOAI_ABI,
-      functionName: "outstandingAmount",
+      functionName: "getOutstanding",
       args: [aa.smartAccountAddress],
     })
     .then(asBigInt)
@@ -1059,7 +1029,6 @@ export async function payOutstandingOnchain(input: {
     .catch(() => 0n);
 
   const hashes: `0x${string}`[] = [];
-
   try {
     const usdc = getContract({
       address: usdcAddress,
@@ -1071,7 +1040,6 @@ export async function payOutstandingOnchain(input: {
       abi: MOAI_ABI,
       client: { public: aa.publicClient, wallet: aa.smartAccountClient },
     });
-
     if (allowance < amountToPay) {
       hashes.push(
         await usdc.write.approve([moaiAddress, amountToPay], {
@@ -1080,7 +1048,6 @@ export async function payOutstandingOnchain(input: {
         }),
       );
     }
-
     hashes.push(
       await moai.write.payOutstanding([amountToPay], {
         account: aa.smartAccountAddress,
@@ -1102,23 +1069,18 @@ export async function proposeRemovalOnchain(input: {
 > {
   const cfg = readOnchainMoaiConfig();
   if (!cfg) return { ok: false, error: "Onchain config not set." };
-
   const resolved = await resolveExecution(input.sessionId);
   if (!resolved) return { ok: false, error: "Login to propose removal." };
-
   const member = input.member.trim();
   if (!isEvmAddress(member)) return { ok: false, error: "Invalid member." };
-
   const moaiAddress = cfg.moaiAddress as Address;
 
   if (resolved.kind === "wallet") {
     const provider = getWalletProvider();
     if (!provider)
       return { ok: false, error: "Wallet provider not available." };
-
     const publicClient = createPublicClient({ transport: custom(provider) });
     const walletClient = createWalletClient({ transport: custom(provider) });
-
     const before = await publicClient
       .readContract({
         address: moaiAddress,
@@ -1128,7 +1090,6 @@ export async function proposeRemovalOnchain(input: {
       })
       .then(asBigInt)
       .catch(() => 0n);
-
     try {
       const { request } = await publicClient.simulateContract({
         address: moaiAddress,
@@ -1137,36 +1098,21 @@ export async function proposeRemovalOnchain(input: {
         args: [member],
         account: resolved.account,
       });
-
       const hash = await walletClient.writeContract(request);
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-
-      let requestId = before;
-      try {
-        const parsed = parseEventLogs({
-          abi: REMOVAL_PROPOSED_EVENT_ABI,
-          logs: receipt.logs,
-          eventName: "RemovalProposed",
-        });
-        if (parsed.length > 0) requestId = parsed[0].args.requestId;
-      } catch {
-        // ignore
-      }
-
-      if (requestId === before) {
-        const after = await publicClient
-          .readContract({
-            address: moaiAddress,
-            abi: MOAI_ABI,
-            functionName: "removalRequestCount",
-            args: [],
-          })
-          .then(asBigInt)
-          .catch(() => before);
-        if (after > before) requestId = after;
-      }
-
-      return { ok: true, hash, requestId };
+      const after = await publicClient
+        .readContract({
+          address: moaiAddress,
+          abi: MOAI_ABI,
+          functionName: "removalRequestCount",
+          args: [],
+        })
+        .then(asBigInt)
+        .catch(() => before);
+      return {
+        ok: true,
+        hash,
+        requestId: after > before ? after - 1n : before,
+      };
     } catch {
       return { ok: false, error: "Transaction failed." };
     }
@@ -1174,7 +1120,6 @@ export async function proposeRemovalOnchain(input: {
 
   const aa = await getAaClients({ identityId: resolved.identityId });
   if (!aa) return { ok: false, error: "AA config not set." };
-
   const before = await aa.publicClient
     .readContract({
       address: moaiAddress,
@@ -1184,46 +1129,26 @@ export async function proposeRemovalOnchain(input: {
     })
     .then(asBigInt)
     .catch(() => 0n);
-
   try {
     const moai = getContract({
       address: moaiAddress,
       abi: MOAI_ABI,
       client: { public: aa.publicClient, wallet: aa.smartAccountClient },
     });
-
     const hash = await moai.write.proposeRemoval([member], {
       account: aa.smartAccountAddress,
       chain: aa.publicClient.chain,
     });
-    const receipt = await aa.publicClient.waitForTransactionReceipt({ hash });
-
-    let requestId = before;
-    try {
-      const parsed = parseEventLogs({
-        abi: REMOVAL_PROPOSED_EVENT_ABI,
-        logs: receipt.logs,
-        eventName: "RemovalProposed",
-      });
-      if (parsed.length > 0) requestId = parsed[0].args.requestId;
-    } catch {
-      // ignore
-    }
-
-    if (requestId === before) {
-      const after = await aa.publicClient
-        .readContract({
-          address: moaiAddress,
-          abi: MOAI_ABI,
-          functionName: "removalRequestCount",
-          args: [],
-        })
-        .then(asBigInt)
-        .catch(() => before);
-      if (after > before) requestId = after;
-    }
-
-    return { ok: true, hash, requestId };
+    const after = await aa.publicClient
+      .readContract({
+        address: moaiAddress,
+        abi: MOAI_ABI,
+        functionName: "removalRequestCount",
+        args: [],
+      })
+      .then(asBigInt)
+      .catch(() => before);
+    return { ok: true, hash, requestId: after > before ? after - 1n : before };
   } catch {
     return { ok: false, error: "Transaction failed." };
   }
@@ -1236,20 +1161,16 @@ export async function voteRemovalOnchain(input: {
 }): Promise<{ ok: true; hash: `0x${string}` } | { ok: false; error: string }> {
   const cfg = readOnchainMoaiConfig();
   if (!cfg) return { ok: false, error: "Onchain config not set." };
-
   const resolved = await resolveExecution(input.sessionId);
   if (!resolved) return { ok: false, error: "Login to vote." };
-
   const moaiAddress = cfg.moaiAddress as Address;
 
   if (resolved.kind === "wallet") {
     const provider = getWalletProvider();
     if (!provider)
       return { ok: false, error: "Wallet provider not available." };
-
     const publicClient = createPublicClient({ transport: custom(provider) });
     const walletClient = createWalletClient({ transport: custom(provider) });
-
     try {
       const { request } = await publicClient.simulateContract({
         address: moaiAddress,
@@ -1267,20 +1188,13 @@ export async function voteRemovalOnchain(input: {
 
   const aa = await getAaClients({ identityId: resolved.identityId });
   if (!aa) return { ok: false, error: "AA config not set." };
-
   try {
     const moai = getContract({
       address: moaiAddress,
       abi: MOAI_ABI,
       client: { public: aa.publicClient, wallet: aa.smartAccountClient },
     });
-    const hash = await moai.write.voteRemoval(
-      [input.requestId, input.approve],
-      {
-        account: aa.smartAccountAddress,
-        chain: aa.publicClient.chain,
-      },
-    );
+    const hash = await moai.write.voteRemoval([input.requestId, input.approve]);
     return { ok: true, hash };
   } catch {
     return { ok: false, error: "Transaction failed." };
@@ -1292,20 +1206,16 @@ export async function voteForDissolutionOnchain(input: {
 }): Promise<{ ok: true; hash: `0x${string}` } | { ok: false; error: string }> {
   const cfg = readOnchainMoaiConfig();
   if (!cfg) return { ok: false, error: "Onchain config not set." };
-
   const resolved = await resolveExecution(input.sessionId);
   if (!resolved) return { ok: false, error: "Login to vote." };
-
   const moaiAddress = cfg.moaiAddress as Address;
 
   if (resolved.kind === "wallet") {
     const provider = getWalletProvider();
     if (!provider)
       return { ok: false, error: "Wallet provider not available." };
-
     const publicClient = createPublicClient({ transport: custom(provider) });
     const walletClient = createWalletClient({ transport: custom(provider) });
-
     try {
       const { request } = await publicClient.simulateContract({
         address: moaiAddress,
@@ -1323,17 +1233,13 @@ export async function voteForDissolutionOnchain(input: {
 
   const aa = await getAaClients({ identityId: resolved.identityId });
   if (!aa) return { ok: false, error: "AA config not set." };
-
   try {
     const moai = getContract({
       address: moaiAddress,
       abi: MOAI_ABI,
       client: { public: aa.publicClient, wallet: aa.smartAccountClient },
     });
-    const hash = await moai.write.voteForDissolution([], {
-      account: aa.smartAccountAddress,
-      chain: aa.publicClient.chain,
-    });
+    const hash = await moai.write.voteForDissolution();
     return { ok: true, hash };
   } catch {
     return { ok: false, error: "Transaction failed." };
@@ -1345,20 +1251,16 @@ export async function exitMoaiOnchain(input: {
 }): Promise<{ ok: true; hash: `0x${string}` } | { ok: false; error: string }> {
   const cfg = readOnchainMoaiConfig();
   if (!cfg) return { ok: false, error: "Onchain config not set." };
-
   const resolved = await resolveExecution(input.sessionId);
   if (!resolved) return { ok: false, error: "Login to exit." };
-
   const moaiAddress = cfg.moaiAddress as Address;
 
   if (resolved.kind === "wallet") {
     const provider = getWalletProvider();
     if (!provider)
       return { ok: false, error: "Wallet provider not available." };
-
     const publicClient = createPublicClient({ transport: custom(provider) });
     const walletClient = createWalletClient({ transport: custom(provider) });
-
     try {
       const { request } = await publicClient.simulateContract({
         address: moaiAddress,
@@ -1376,17 +1278,13 @@ export async function exitMoaiOnchain(input: {
 
   const aa = await getAaClients({ identityId: resolved.identityId });
   if (!aa) return { ok: false, error: "AA config not set." };
-
   try {
     const moai = getContract({
       address: moaiAddress,
       abi: MOAI_ABI,
       client: { public: aa.publicClient, wallet: aa.smartAccountClient },
     });
-    const hash = await moai.write.exitMoai([], {
-      account: aa.smartAccountAddress,
-      chain: aa.publicClient.chain,
-    });
+    const hash = await moai.write.exitMoai();
     return { ok: true, hash };
   } catch {
     return { ok: false, error: "Transaction failed." };

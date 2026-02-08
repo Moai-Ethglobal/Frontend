@@ -191,9 +191,9 @@ export function PoolCard({ moaiId }: { moaiId: string }) {
           <div className="mt-4 rounded-lg bg-neutral-50 p-3 text-sm text-neutral-700">
             <p className="text-xs font-medium text-neutral-700">Onchain</p>
             <p className="mt-2">
-              Distribution pot:{" "}
+              Available distribution:{" "}
               <span className="font-medium text-neutral-900">
-                {onchain.distributionPotUSDC} USDC
+                {onchain.availableDistributionUSDC} USDC
               </span>
             </p>
             <p className="mt-1">

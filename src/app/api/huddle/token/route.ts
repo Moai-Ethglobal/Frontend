@@ -170,17 +170,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "signature invalid" }, { status: 401 });
   }
 
-  const isMember = await publicClient
+  const rawMemberInfo = await publicClient
     .readContract({
       address: moaiAddressRaw as Address,
       abi: MOAI_ABI,
-      functionName: "isMember",
+      functionName: "memberInfo",
       args: [address as Address],
     })
-    .then((v) => Boolean(v))
-    .catch(() => false);
+    .catch(() => null);
+  const isActiveMember =
+    rawMemberInfo != null &&
+    (Array.isArray(rawMemberInfo)
+      ? rawMemberInfo[0] === true
+      : typeof rawMemberInfo === "object" &&
+        (rawMemberInfo as Record<string, unknown>).isActive === true);
 
-  if (!isMember) {
+  if (!isActiveMember) {
     return NextResponse.json({ error: "not a member" }, { status: 403 });
   }
 

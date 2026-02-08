@@ -3,9 +3,14 @@
     "type": "constructor",
     "inputs": [
       {
-        "name": "usdc",
+        "name": "_usdc",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "_name",
+        "type": "string",
+        "internalType": "string"
       },
       {
         "name": "_contributionAmount",
@@ -13,7 +18,7 @@
         "internalType": "uint256"
       },
       {
-        "name": "_contributionDueDate",
+        "name": "_cycleDayDue",
         "type": "uint256",
         "internalType": "uint256"
       },
@@ -23,7 +28,7 @@
         "internalType": "uint256"
       },
       {
-        "name": "initialMember",
+        "name": "_initialMember",
         "type": "address",
         "internalType": "address"
       }
@@ -32,7 +37,7 @@
   },
   {
     "type": "function",
-    "name": "BPS",
+    "name": "DISTRIBUTION_PERCENT",
     "inputs": [],
     "outputs": [
       {
@@ -45,7 +50,46 @@
   },
   {
     "type": "function",
-    "name": "DISTRIBUTION_BPS",
+    "name": "EMERGENCY_APPROVAL_THRESHOLD",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "EMERGENCY_MAX_PERCENT",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "EMERGENCY_PERCENT",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "GRACE_PERIOD",
     "inputs": [],
     "outputs": [
       {
@@ -71,19 +115,6 @@
   },
   {
     "type": "function",
-    "name": "RESERVE_BPS",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "USDC",
     "inputs": [],
     "outputs": [
@@ -97,10 +128,23 @@
   },
   {
     "type": "function",
-    "name": "approvedEmergencyAmount",
-    "inputs": [
+    "name": "activeMemberCount",
+    "inputs": [],
+    "outputs": [
       {
         "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "canBeRemoved",
+    "inputs": [
+      {
+        "name": "member",
         "type": "address",
         "internalType": "address"
       }
@@ -108,8 +152,8 @@
     "outputs": [
       {
         "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -136,7 +180,7 @@
   },
   {
     "type": "function",
-    "name": "contributionDueDate",
+    "name": "createdAt",
     "inputs": [],
     "outputs": [
       {
@@ -150,6 +194,32 @@
   {
     "type": "function",
     "name": "currentMonth",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "cycleDayDue",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "dissolutionSharePerMember",
     "inputs": [],
     "outputs": [
       {
@@ -182,76 +252,6 @@
   },
   {
     "type": "function",
-    "name": "distributionAmountByMonth",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "distributionPot",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "distributionRecipientByMonth",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "distributionWithdrawnByMonth",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "emergencyRequestCount",
     "inputs": [],
     "outputs": [
@@ -259,6 +259,40 @@
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "emergencyRequests",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "beneficiary",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "approvalCount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "executed",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -285,34 +319,52 @@
   },
   {
     "type": "function",
-    "name": "getEmergencyRequest",
-    "inputs": [
+    "name": "getAvailableDistribution",
+    "inputs": [],
+    "outputs": [
       {
-        "name": "requestId",
+        "name": "",
         "type": "uint256",
         "internalType": "uint256"
       }
     ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getCurrentRecipient",
+    "inputs": [],
     "outputs": [
       {
-        "name": "beneficiary",
+        "name": "",
         "type": "address",
         "internalType": "address"
-      },
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getEmergencyReserve",
+    "inputs": [],
+    "outputs": [
       {
-        "name": "amount",
+        "name": "",
         "type": "uint256",
         "internalType": "uint256"
-      },
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getMemberCount",
+    "inputs": [],
+    "outputs": [
       {
-        "name": "approvalCount",
+        "name": "",
         "type": "uint256",
         "internalType": "uint256"
-      },
-      {
-        "name": "approved",
-        "type": "bool",
-        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -332,38 +384,20 @@
   },
   {
     "type": "function",
-    "name": "getReserveBalances",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "distributionPotUSDC",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "emergencyReserveUSDC",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getRoundRobinRecipient",
+    "name": "getNextDistributionDate",
     "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "address",
-        "internalType": "address"
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "getWithdrawable",
+    "name": "getOutstanding",
     "inputs": [
       {
         "name": "member",
@@ -373,19 +407,60 @@
     ],
     "outputs": [
       {
-        "name": "amount",
+        "name": "",
         "type": "uint256",
         "internalType": "uint256"
-      },
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPendingDistribution",
+    "inputs": [
       {
-        "name": "reasonCode",
-        "type": "uint8",
-        "internalType": "uint8"
-      },
+        "name": "member",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
       {
-        "name": "refId",
+        "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getTotalBalance",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "hasPaidThisMonth",
+    "inputs": [
+      {
+        "name": "member",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -405,25 +480,6 @@
   },
   {
     "type": "function",
-    "name": "isMember",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "joinMoai",
     "inputs": [],
     "outputs": [],
@@ -431,8 +487,14 @@
   },
   {
     "type": "function",
-    "name": "memberCount",
-    "inputs": [],
+    "name": "lastPaidMonth",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
     "outputs": [
       {
         "name": "",
@@ -444,7 +506,7 @@
   },
   {
     "type": "function",
-    "name": "members",
+    "name": "memberAddresses",
     "inputs": [
       {
         "name": "",
@@ -457,6 +519,55 @@
         "name": "",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "memberInfo",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "isActive",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "arrayIndex",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "joinMonth",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalContributed",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "approvedEmergency",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "votedDissolution",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "withdrawnDissolution",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -476,38 +587,13 @@
   },
   {
     "type": "function",
-    "name": "outstandingAmount",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
+    "name": "name",
+    "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "paidThisMonth",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
+        "type": "string",
+        "internalType": "string"
       }
     ],
     "stateMutability": "view"
@@ -527,6 +613,25 @@
   },
   {
     "type": "function",
+    "name": "pendingDistribution",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "proposeRemoval",
     "inputs": [
       {
@@ -537,7 +642,7 @@
     ],
     "outputs": [
       {
-        "name": "requestId",
+        "name": "",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -553,6 +658,35 @@
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "removalRequests",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "member",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "approvalCount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "executed",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -582,7 +716,7 @@
     ],
     "outputs": [
       {
-        "name": "requestId",
+        "name": "",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -647,40 +781,8 @@
   },
   {
     "type": "function",
-    "name": "votedForDissolution",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "withdrawEmergency",
+    "name": "withdraw",
     "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "withdrawRoundRobin",
-    "inputs": [
-      {
-        "name": "month",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
@@ -761,25 +863,6 @@
   },
   {
     "type": "event",
-    "name": "EmergencyWithdrawn",
-    "inputs": [
-      {
-        "name": "beneficiary",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "MemberAdded",
     "inputs": [
       {
@@ -787,6 +870,12 @@
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      },
+      {
+        "name": "joinMonth",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -809,7 +898,19 @@
     "name": "MoaiDissolved",
     "inputs": [
       {
+        "name": "totalAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
         "name": "memberCount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "sharePerMember",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -824,7 +925,7 @@
       {
         "name": "month",
         "type": "uint256",
-        "indexed": true,
+        "indexed": false,
         "internalType": "uint256"
       },
       {
@@ -834,13 +935,13 @@
         "internalType": "address"
       },
       {
-        "name": "distributionAmount",
+        "name": "toEmergency",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
       },
       {
-        "name": "reserveAmount",
+        "name": "toDistribution",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -850,7 +951,7 @@
   },
   {
     "type": "event",
-    "name": "OutstandingUpdated",
+    "name": "OutstandingPaid",
     "inputs": [
       {
         "name": "member",
@@ -869,52 +970,8 @@
   },
   {
     "type": "event",
-    "name": "RemovalExecuted",
+    "name": "Withdrawn",
     "inputs": [
-      {
-        "name": "requestId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "member",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "RemovalProposed",
-    "inputs": [
-      {
-        "name": "requestId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "member",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "RoundRobinWithdrawn",
-    "inputs": [
-      {
-        "name": "month",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
       {
         "name": "recipient",
         "type": "address",
@@ -926,6 +983,12 @@
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
       }
     ],
     "anonymous": false
@@ -952,7 +1015,7 @@
   },
   {
     "type": "error",
-    "name": "AlreadyWithdrawn",
+    "name": "AlreadyWithdrawnDissolution",
     "inputs": []
   },
   {
@@ -972,12 +1035,17 @@
   },
   {
     "type": "error",
+    "name": "InsufficientContributors",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidAmount",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "InvalidDueDate",
+    "name": "InvalidCycleDay",
     "inputs": []
   },
   {
@@ -987,17 +1055,7 @@
   },
   {
     "type": "error",
-    "name": "NoContributionsCollected",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "NoWithdrawable",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "NotFound",
+    "name": "NoApprovedWithdrawal",
     "inputs": []
   },
   {
@@ -1007,7 +1065,12 @@
   },
   {
     "type": "error",
-    "name": "NotYourTurn",
+    "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TooEarlyToDistribute",
     "inputs": []
   }
 ]
