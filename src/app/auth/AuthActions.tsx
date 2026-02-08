@@ -25,7 +25,9 @@ export function AuthActions() {
       const accounts = await requestWalletAccounts();
       const address = accounts?.[0];
       if (!address) {
-        setError("No wallet account available.");
+        setError(
+          "No wallet detected. Install a wallet extension, or open this page in your wallet app.",
+        );
         return;
       }
       createSessionWithId("wallet", address.trim().toLowerCase());

@@ -136,9 +136,6 @@ export function CreateMoaiForm() {
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-neutral-600">
-          Invite link is created locally for now.
-        </p>
         <button
           className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           type="button"
